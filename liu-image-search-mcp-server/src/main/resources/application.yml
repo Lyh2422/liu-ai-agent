@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: liu-image-search-mcp-server
+  profiles:
+    active: sse
+
+server:
+  port: 8127

@@ -3,6 +3,22 @@ spring:
     name: liu-ai-agent
   profiles:
     active: local
+  ai:
+    dashscope:
+      api-key: your-api-key
+      chat:
+        options:
+          model: qwen-plus
+
+    mcp:
+      client:
+#        stdio:
+#          servers-configuration: classpath:mcp-servers.json
+         sse:
+           connections:
+             server1:
+               url: http://localhost:8127
+
 
 server:
   port: 8123
@@ -26,3 +42,7 @@ knife4j:
   enable: true
   setting:
     language: zh_cn
+
+#Search API
+search-api:
+  api-key: 你的API Key
