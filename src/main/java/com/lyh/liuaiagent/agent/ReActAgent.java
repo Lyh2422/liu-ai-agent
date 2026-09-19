@@ -31,13 +31,14 @@ public abstract class ReActAgent extends BaseAgent {
         try{
             boolean shouldAct = think();
             if(!shouldAct){
-                return "思考完成-无需行动";
+                setState(com.lyh.liuaiagent.agent.model.AgentState.FINISHED);
+                if (!getMessageList().isEmpty()) return getMessageList().getLast().getText();
+                return "思考完成";
             }
             return act();
         }catch (Exception e){
             //记录异常日志
-            e.printStackTrace();
-            return "步骤执行失败："+e.getMessage();
+            throw new IllegalStateException("步骤执行失败", e);
         }
     }
 }

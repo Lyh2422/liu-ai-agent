@@ -22,7 +22,7 @@ public class HttpAiInvoke {
 
         // 设置请求体
         JSONObject requestBody = new JSONObject();
-        requestBody.put("model", "qwen-plus");
+        requestBody.put("model", "qwen-max");
 
         JSONObject input = new JSONObject();
         JSONObject[] messages = new JSONObject[2];

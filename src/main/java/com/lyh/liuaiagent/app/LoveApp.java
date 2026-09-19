@@ -2,7 +2,6 @@ package com.lyh.liuaiagent.app;
 
 
 import com.lyh.liuaiagent.advisor.MyLoggerAdvisor;
-import com.lyh.liuaiagent.advisor.ReReadingAdvisor;
 import com.lyh.liuaiagent.chatmemory.FileBasedChatMemory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +17,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -29,6 +29,7 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 public class LoveApp {
 
     private final ChatClient chatClient;
+    private final ChatClient historyChatClient;
 
     @Resource
     private Advisor loveAppRagCloudAdvisor;
@@ -49,6 +50,8 @@ public class LoveApp {
             "注意：不说教，不评判，遇到“被贬低、太委屈”这类情况，温和提醒：“健康的恋爱是舒服的，实在难受可以找学校心理老师聊聊呀～”";
 
     public LoveApp(ChatModel dashscopeChatModel) {
+        // 会话服务统一保存消息，此客户端接收显式历史，避免 Advisor 重复记忆或跨用户缓存。
+        historyChatClient = ChatClient.builder(dashscopeChatModel).defaultSystem(SYSTEM_PROMPT).build();
         //初始化基于内存的对话记忆
         //ChatMemory chatMemory=new InMemoryChatMemory();
         // 初始化基于文件的对话记忆
@@ -184,6 +187,26 @@ public class LoveApp {
         return content;
     }
 
+    /**
+     *  AI 基础对话(支持多轮回话记忆，SSE 流式传输)
+     * @param message
+     * @param chatId
+     * @return
+     */
+    public Flux<String> doChatByStream(String message, String chatId) {
+        return chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .stream()
+                .content();
+    }
 
+    public Flux<String> chatWithHistory(String message, List<org.springframework.ai.chat.messages.Message> history) {
+        var prompt = historyChatClient.prompt().messages(history).user(message);
+        if (loveAppRagCloudAdvisor != null) prompt.advisors(loveAppRagCloudAdvisor);
+        return prompt.stream().content();
+    }
 
 }
