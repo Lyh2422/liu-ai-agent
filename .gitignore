@@ -1,6 +1,9 @@
 ### CUSTOM ###
 application-local.yml
 tmp
+.DS_Store
+*.zip
+output/
 
 HELP.md
 target/
@@ -32,6 +35,9 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
+dist/
+node_modules/
+.vite/
 
 ### VS Code ###
 .vscode/

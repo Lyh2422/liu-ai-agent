@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: liu-ai-agent
+
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        options:
+          model: ${DASHSCOPE_CHAT_MODEL:qwen3.8-max}
+          # Qwen3.8 使用多模态接口；切换回仅支持文本的模型时设为 false。
+          multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
+
+#    mcp:
+#      client:
+#        #        stdio:
+#        #          servers-configuration: classpath:mcp-servers.json
+#        sse:
+#          connections:
+#            server1:
+#              url: http://localhost:8127
+
+
+server:
+  port: 8123
+  servlet:
+    context-path: /api
+
+# springdoc-openapi
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.lyh.liuaiagent.controller
+# knife4j???????????????
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+#Search API
+search-api:
+  api-key: ${SEARCH_API_KEY:}
