@@ -1,0 +1,45 @@
+schema: spec-driven
+
+context: |
+  Project: liu-ai-agent, a Spring Boot AI agent application with a Vue frontend.
+  Backend: Java 21, Spring Boot 3.4.8, Maven wrapper, Spring AI Alibaba,
+  DashScope, Spring AI MCP client, Jsoup, iText, and JUnit 5.
+  Frontend: Vue 3, Vite, Vue Router, and Axios in liu-ai-agent-frontend/.
+  Supporting service: liu-image-search-mcp-server/ is a separate Spring Boot MCP
+  server module.
+  Main backend entrypoint: src/main/java/com/lyh/liuaiagent/LiuAiAgentApplication.java.
+  Main HTTP surface: /health and /ai, including LoveApp chat SSE endpoints and
+  the /ai/manus/chat agent endpoint.
+  Domain capabilities: LoveApp provides multi-turn relationship advice, report
+  generation, RAG, tools, MCP, streaming responses, and hot-question caching.
+  LiuManus is a tool-using planning agent with a configurable step limit.
+  Persistent local chat memory is stored under tmp/chat-memory.
+  Verification commands: ./mvnw test and
+  (cd liu-ai-agent-frontend && npm run build).
+  Some existing integration tests call external AI or MCP services; prefer
+  focused tests and document required environment variables when adding them.
+  Preserve existing uncommitted user changes and keep changes scoped to the
+  requested OpenSpec change.
+
+rules:
+  proposal:
+    - Include explicit scope and non-goals.
+    - Name affected backend/frontend modules when the change crosses the boundary.
+  specs:
+    - Write requirements as observable system behavior.
+    - Include at least one concrete scenario for each requirement.
+  design:
+    - Prefer existing Spring Boot, Spring AI, Vue, and Maven patterns.
+    - Call out external services, credentials, persistence, and failure behavior.
+  tasks:
+    - Keep tasks small and independently verifiable.
+    - Include focused tests or an explicit reason a test cannot be automated.
+
+operations:
+  apply:
+    guidance:
+      - Run focused Maven tests first, then the frontend build when affected.
+      - Do not claim external-AI integration coverage when credentials or services are unavailable.
+  archive:
+    guidance:
+      - Summarize validation results and any external-service test limitations.
