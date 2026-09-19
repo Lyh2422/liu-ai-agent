@@ -5,19 +5,30 @@ spring:
     active: local
   ai:
     dashscope:
-      api-key: your-api-key
+      api-key: ${DASHSCOPE_API_KEY:}
       chat:
         options:
-          model: qwen-plus
+          model: ${DASHSCOPE_CHAT_MODEL:qwen3.8-max}
+          # Qwen3.8 使用多模态接口；切换回仅支持文本的模型时设为 false。
+          multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
+  datasource:
+    url: ${CHAT_DATABASE_URL:jdbc:h2:file:./tmp/data/liu-ai-agent;MODE=MySQL;AUTO_SERVER=TRUE}
+    driver-class-name: org.h2.Driver
+    username: ${CHAT_DATABASE_USERNAME:root}
+    password: ${CHAT_DATABASE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
-    mcp:
-      client:
-#        stdio:
-#          servers-configuration: classpath:mcp-servers.json
-         sse:
-           connections:
-             server1:
-               url: http://localhost:8127
+#    mcp:
+#      client:
+##        stdio:
+##          servers-configuration: classpath:mcp-servers.json
+#         sse:
+#           connections:
+#             server1:
+#               url: http://localhost:8127
 
 
 server:
@@ -25,7 +36,25 @@ server:
   servlet:
     context-path: /api
 
-# springdoc-openapi ??????
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:}
+    expiration-ms: ${AUTH_JWT_EXPIRATION_MS:7200000}
+  bootstrap-admin:
+    username: ${AUTH_BOOTSTRAP_ADMIN_USERNAME:admin}
+    password: ${AUTH_BOOTSTRAP_ADMIN_PASSWORD:}
+  upload:
+    dir: ${AUTH_UPLOAD_DIR:${user.dir}/tmp/uploads}
+    max-size-bytes: ${AUTH_UPLOAD_MAX_SIZE_BYTES:2097152}
+  cos:
+    enabled: ${TENCENT_COS_ENABLED:false}
+    secret-id: ${TENCENT_COS_SECRET_ID:}
+    secret-key: ${TENCENT_COS_SECRET_KEY:}
+    region: ${TENCENT_COS_REGION:ap-shanghai}
+    bucket: ${TENCENT_COS_BUCKET:}
+    public-base-url: ${TENCENT_COS_PUBLIC_BASE_URL:}
+
+# springdoc-openapi
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -45,4 +74,4 @@ knife4j:
 
 #Search API
 search-api:
-  api-key: 你的API Key
+  api-key: ${SEARCH_API_KEY:}
