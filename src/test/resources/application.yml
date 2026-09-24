@@ -1,4 +1,11 @@
 spring:
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        options:
+          model: qwen3.7-flash
+          multi-model: true
   datasource:
     url: jdbc:h2:mem:liu_ai_agent_test;DB_CLOSE_DELAY=-1;MODE=MySQL
     driver-class-name: org.h2.Driver
@@ -10,3 +17,6 @@ spring:
     open-in-view: false
   flyway:
     enabled: false
+
+search-api:
+  api-key: ""

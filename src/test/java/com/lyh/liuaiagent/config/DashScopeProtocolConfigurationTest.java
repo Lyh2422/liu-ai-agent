@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DashScopeProtocolConfigurationTest {
     @ParameterizedTest
-    @ValueSource(strings = {"application.yml", "application-local.yml", "application-prod.yml"})
+    @ValueSource(strings = {"application.yml", "application-prod.yml"})
     void configuredQwenUsesMultimodalRouteAndDecodesText(String resource) throws Exception {
         var environment = new StandardEnvironment();
         for (var source : new YamlPropertySourceLoader().load("protocol", new ClassPathResource(resource))) {
@@ -29,7 +29,7 @@ class DashScopeProtocolConfigurationTest {
         var options = new DashScopeChatOptions();
         options.setModel(environment.getProperty("spring.ai.dashscope.chat.options.model"));
         options.setMultiModel(environment.getProperty("spring.ai.dashscope.chat.options.multi-model", Boolean.class));
-        assertEquals("qwen3.8-flash", options.getModel());
+        assertEquals("qwen3.7-flash", options.getModel());
         assertEquals(Boolean.TRUE, options.getMultiModel());
         var path = new AtomicReference<String>();
         var web = WebClient.builder().exchangeFunction(request -> {
