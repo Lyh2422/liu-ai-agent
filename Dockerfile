@@ -1,16 +1,27 @@
-# 使用预装 Maven 和 JDK21 的镜像
-FROM maven:3.9-amazoncorretto-21
-WORKDIR /app
+# Build the application in a disposable Maven image.
+FROM maven:3.9-amazoncorretto-21 AS build
+WORKDIR /build
 
 # 只复制必要的源代码和配置文件
 COPY pom.xml .
 COPY src ./src
 
 # 使用 Maven 执行打包
-RUN mvn clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn clean package -DskipTests
 
-# 暴露应用端口
+# Keep Maven and source files out of the runtime image.
+FROM amazoncorretto:21-alpine
+WORKDIR /app
+
+RUN addgroup -S appgroup \
+    && adduser -S appuser -G appgroup \
+    && mkdir -p /app/tmp \
+    && chown -R appuser:appgroup /app
+
+COPY --from=build /build/target/liu-ai-agent-0.0.1-SNAPSHOT.jar /app/app.jar
+
+USER appuser
+ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8123
 
-# 使用生产环境配置启动应用
-CMD ["java", "-jar", "/app/target/liu-ai-agent-0.0.1-SNAPSHOT.jar", "--spring.profiles.active=prod"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

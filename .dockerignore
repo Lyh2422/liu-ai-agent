@@ -1,0 +1,13 @@
+.git
+.idea
+.vscode
+.demo-data
+.env
+.env.*
+target
+output
+tmp
+liu-ai-agent-frontend
+liu-image-search-mcp-server
+*.log
+*.zip

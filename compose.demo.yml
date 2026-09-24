@@ -1,0 +1,40 @@
+name: liu-ai-agent-demo
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - ${DEMO_ENV_FILE:-.env.demo}
+    environment:
+      # Keep deployment settings separate from the demo-only CommandLineRunner.
+      SPRING_PROFILES_ACTIVE: deployment
+      SPRING_CONFIG_IMPORT: optional:classpath:/application-demo.yml
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -Djava.security.egd=file:/dev/urandom
+    volumes:
+      - liu_ai_agent_demo_data:/app/tmp
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./liu-ai-agent-frontend
+      dockerfile: Dockerfile.demo
+      args:
+        VITE_API_BASE_URL: /api
+    depends_on:
+      - backend
+    ports:
+      - 127.0.0.1:${DEMO_PORT:-8080}:80
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  liu_ai_agent_demo_data:
+    name: liu-ai-agent-demo-data
