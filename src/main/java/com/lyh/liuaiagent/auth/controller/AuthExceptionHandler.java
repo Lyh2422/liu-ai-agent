@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,6 +32,11 @@ public class AuthExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     ResponseEntity<Map<String, Object>> notFound(NotFoundException exception) {
         return body(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<Map<String, Object>> accessDenied(AccessDeniedException exception) {
+        return body(HttpStatus.FORBIDDEN, exception.getMessage());
     }
 
     @ExceptionHandler({IOException.class, MaxUploadSizeExceededException.class})

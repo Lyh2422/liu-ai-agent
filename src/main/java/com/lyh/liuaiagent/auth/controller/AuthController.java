@@ -41,7 +41,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
-        return UserResponse.from(currentUser(authentication));
+        return profileService.getSelf(currentUser(authentication));
     }
 
     @PutMapping("/me")

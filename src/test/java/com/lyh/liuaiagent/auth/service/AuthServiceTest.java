@@ -42,6 +42,8 @@ class AuthServiceTest {
         var response = service.register(new RegisterRequest("alice", "password123", "2026", "计算机学院", "你好"));
 
         assertEquals("alice", response.username());
+        assertNotNull(response.publicId());
+        assertEquals(11, response.publicId().length());
         assertEquals(UserRole.USER, response.role());
         assertFalse(response.enabled() == false);
         ArgumentCaptor<UserAccount> captor = ArgumentCaptor.forClass(UserAccount.class);
@@ -69,5 +71,21 @@ class AuthServiceTest {
 
         assertThrows(BadCredentialsException.class,
                 () -> service.login(new LoginRequest("alice", "password123")));
+    }
+
+    @Test
+    void loginBackfillsPublicIdForLegacyAccount() {
+        UserAccount user = new UserAccount();
+        user.setId(7L);
+        user.setUsername("legacy");
+        user.setPasswordHash(encoder.encode("password123"));
+        user.setEnabled(true);
+        when(repository.findByUsernameIgnoreCase("legacy")).thenReturn(Optional.of(user));
+
+        var response = service.login(new LoginRequest("legacy", "password123"));
+
+        assertNotNull(response.user().publicId());
+        assertEquals(11, response.user().publicId().length());
+        verify(repository).save(user);
     }
 }

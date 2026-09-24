@@ -22,7 +22,13 @@ public class UserProfileService {
     }
 
     @Transactional
+    public UserResponse getSelf(UserAccount user) {
+        return UserResponse.from(ensurePublicId(user));
+    }
+
+    @Transactional
     public UserResponse updateSelf(UserAccount user, ProfileUpdateRequest request) {
+        ensurePublicId(user);
         applyProfile(user, request.grade(), request.college(), request.signature(), request.avatarUrl(), false);
         return UserResponse.from(repository.save(user));
     }
@@ -67,5 +73,17 @@ public class UserProfileService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private UserAccount ensurePublicId(UserAccount user) {
+        if (user.getPublicId() != null && !user.getPublicId().isBlank()) {
+            return user;
+        }
+        String publicId;
+        do {
+            publicId = UserAccount.newPublicId();
+        } while (repository.existsByPublicIdIgnoreCase(publicId));
+        user.setPublicId(publicId);
+        return repository.save(user);
     }
 }

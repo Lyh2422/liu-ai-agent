@@ -30,6 +30,7 @@ public class AuthService {
             throw new ConflictException("用户名已存在");
         }
         UserAccount user = new UserAccount();
+        user.setPublicId(nextPublicId());
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(UserRole.USER);
@@ -40,11 +41,16 @@ public class AuthService {
         return UserResponse.from(repository.save(user));
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         UserAccount user = repository.findByUsernameIgnoreCase(request.username().trim())
                 .orElseThrow(() -> new BadCredentialsException("用户名或密码错误"));
         if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("用户名或密码错误");
+        }
+        if (user.getPublicId() == null || user.getPublicId().isBlank()) {
+            user.setPublicId(nextPublicId());
+            user = repository.save(user);
         }
         return new AuthResponse(jwtService.createToken(user), UserResponse.from(user));
     }
@@ -57,6 +63,7 @@ public class AuthService {
     public UserAccount bootstrapAdmin(String username, String password) {
         return repository.findByUsernameIgnoreCase(username).orElseGet(() -> {
             UserAccount admin = new UserAccount();
+            admin.setPublicId(nextPublicId());
             admin.setUsername(username);
             admin.setPasswordHash(passwordEncoder.encode(password));
             admin.setRole(UserRole.ADMIN);
@@ -69,5 +76,13 @@ public class AuthService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String nextPublicId() {
+        String publicId;
+        do {
+            publicId = UserAccount.newPublicId();
+        } while (repository.existsByPublicIdIgnoreCase(publicId));
+        return publicId;
     }
 }

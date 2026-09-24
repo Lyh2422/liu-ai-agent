@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ConfigurationProperties(prefix = "auth")
 public class AuthProperties {
+    private boolean registrationEnabled = true;
     private Jwt jwt = new Jwt();
     private BootstrapAdmin bootstrapAdmin = new BootstrapAdmin();
     private Upload upload = new Upload();

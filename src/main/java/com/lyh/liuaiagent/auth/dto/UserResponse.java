@@ -7,6 +7,7 @@ import java.time.Instant;
 
 public record UserResponse(
         Long id,
+        String publicId,
         String username,
         UserRole role,
         boolean enabled,
@@ -18,7 +19,7 @@ public record UserResponse(
         Instant updatedAt
 ) {
     public static UserResponse from(UserAccount user) {
-        return new UserResponse(user.getId(), user.getUsername(), user.getRole(), user.isEnabled(),
+        return new UserResponse(user.getId(), user.getPublicId(), user.getUsername(), user.getRole(), user.isEnabled(),
                 user.getGrade(), user.getCollege(), user.getSignature(), user.getAvatarUrl(),
                 user.getCreatedAt(), user.getUpdatedAt());
     }

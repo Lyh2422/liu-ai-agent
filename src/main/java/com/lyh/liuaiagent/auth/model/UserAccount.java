@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.security.SecureRandom;
 
 @Entity
 @Table(name = "user_accounts", uniqueConstraints = @UniqueConstraint(name = "uk_user_account_username", columnNames = "username"))
@@ -13,9 +14,15 @@ import java.time.Instant;
 @Setter
 @NoArgsConstructor
 public class UserAccount {
+    private static final String PUBLIC_ID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final SecureRandom PUBLIC_ID_RANDOM = new SecureRandom();
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "public_id", unique = true, length = 11)
+    private String publicId;
 
     @Column(nullable = false, length = 32)
     private String username;
@@ -51,6 +58,9 @@ public class UserAccount {
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
+        if (publicId == null || publicId.isBlank()) {
+            publicId = newPublicId();
+        }
         createdAt = now;
         updatedAt = now;
     }
@@ -58,5 +68,13 @@ public class UserAccount {
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
+    }
+
+    public static String newPublicId() {
+        StringBuilder value = new StringBuilder("U");
+        for (int index = 0; index < 10; index++) {
+            value.append(PUBLIC_ID_ALPHABET.charAt(PUBLIC_ID_RANDOM.nextInt(PUBLIC_ID_ALPHABET.length())));
+        }
+        return value.toString();
     }
 }
