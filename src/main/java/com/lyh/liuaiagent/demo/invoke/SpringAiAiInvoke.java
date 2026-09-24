@@ -12,7 +12,7 @@ import org.springframework.ai.chat.model.ChatModel;
  * Spring AI 框架 调用AI大模型
  */
 @Component
-@Profile("demo")
+@Profile("ai-invoke-demo")
 public class SpringAiAiInvoke implements CommandLineRunner {
 
     @Resource
