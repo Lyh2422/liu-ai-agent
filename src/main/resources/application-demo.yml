@@ -1,0 +1,62 @@
+spring:
+  datasource:
+    url: ${CHAT_DATABASE_URL:jdbc:h2:file:/app/tmp/data/liu-ai-agent;MODE=MySQL;AUTO_SERVER=TRUE}
+    driver-class-name: org.h2.Driver
+    username: ${CHAT_DATABASE_USERNAME:root}
+    password: ${CHAT_DATABASE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  flyway:
+    enabled: false
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: ${DASHSCOPE_CHAT_MODEL:qwen3.7-flash}
+          multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
+  servlet:
+    multipart:
+      max-file-size: ${AUTH_UPLOAD_MAX_SIZE_BYTES:2097152}
+      max-request-size: ${AUTH_UPLOAD_MAX_SIZE_BYTES:2097152}
+
+server:
+  forward-headers-strategy: framework
+
+auth:
+  registration-enabled: ${AUTH_REGISTRATION_ENABLED:false}
+  jwt:
+    secret: ${AUTH_JWT_SECRET}
+    expiration-ms: ${AUTH_JWT_EXPIRATION_MS:7200000}
+  bootstrap-admin:
+    username: ${AUTH_BOOTSTRAP_ADMIN_USERNAME}
+    password: ${AUTH_BOOTSTRAP_ADMIN_PASSWORD}
+  upload:
+    dir: ${AUTH_UPLOAD_DIR:/app/tmp/uploads}
+    max-size-bytes: ${AUTH_UPLOAD_MAX_SIZE_BYTES:2097152}
+
+agent:
+  tools:
+    # Public demos must not expose terminal execution, arbitrary URL download/scraping, or raw file tools.
+    dangerous-enabled: false
+
+app:
+  ai-rate-limit:
+    requests-per-minute: ${AI_REQUESTS_PER_MINUTE:6}
+  ai:
+    sensitive-logging-enabled: ${AI_SENSITIVE_LOGGING_ENABLED:false}
+  conversation:
+    retention-days: ${CHAT_RETENTION_DAYS:365}
+    retention-batch-size: ${CHAT_RETENTION_BATCH_SIZE:500}
+    retention-cleanup-cron: ${CHAT_RETENTION_CLEANUP_CRON:0 15 3 * * *}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+knife4j:
+  enable: false

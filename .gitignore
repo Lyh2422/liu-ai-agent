@@ -1,6 +1,11 @@
 ### CUSTOM ###
 application-local.yml
 tmp
+.env.demo
+.env.prod
+.env.mysql
+.codex-*.log
+.playwright-cli/
 .DS_Store
 *.zip
 output/

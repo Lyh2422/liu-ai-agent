@@ -2,12 +2,27 @@ spring:
   application:
     name: liu-ai-agent
 
+  datasource:
+    url: ${CHAT_DATABASE_URL:jdbc:mysql://localhost:3306/liu_ai_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${CHAT_DATABASE_USERNAME:liu_ai_agent}
+    password: ${CHAT_DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/mysql
+    baseline-on-migrate: true
+    baseline-version: 0
+
   ai:
     dashscope:
       api-key: ${DASHSCOPE_API_KEY:}
       chat:
         options:
-          model: ${DASHSCOPE_CHAT_MODEL:qwen3.8-max}
+          model: ${DASHSCOPE_CHAT_MODEL:qwen3.7-flash}
           # Qwen3.8 使用多模态接口；切换回仅支持文本的模型时设为 false。
           multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
 

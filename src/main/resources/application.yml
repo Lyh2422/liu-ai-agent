@@ -8,18 +8,21 @@ spring:
       api-key: ${DASHSCOPE_API_KEY:}
       chat:
         options:
-          model: ${DASHSCOPE_CHAT_MODEL:qwen3.8-max}
+          model: ${DASHSCOPE_CHAT_MODEL:qwen3.7-flash}
           # Qwen3.8 使用多模态接口；切换回仅支持文本的模型时设为 false。
           multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
   datasource:
-    url: ${CHAT_DATABASE_URL:jdbc:h2:file:./tmp/data/liu-ai-agent;MODE=MySQL;AUTO_SERVER=TRUE}
-    driver-class-name: org.h2.Driver
-    username: ${CHAT_DATABASE_USERNAME:root}
-    password: ${CHAT_DATABASE_PASSWORD:}
+    url: ${CHAT_DATABASE_URL:jdbc:mysql://localhost:3306/liu_ai_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${CHAT_DATABASE_USERNAME:liu_ai_agent}
+    password: ${CHAT_DATABASE_PASSWORD:liu_ai_agent_dev}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/mysql
 
 #    mcp:
 #      client:
@@ -75,3 +78,26 @@ knife4j:
 #Search API
 search-api:
   api-key: ${SEARCH_API_KEY:}
+
+love-app:
+  rag:
+    # 先过滤弱相关向量候选，再参与 RRF；应使用真实问答标注集继续校准。
+    vector-similarity-threshold: ${LOVE_APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.72}
+
+app:
+  ai:
+    # 默认不记录用户提示词、模型回复、工具参数和工具结果。
+    sensitive-logging-enabled: ${AI_SENSITIVE_LOGGING_ENABLED:false}
+  conversation:
+    # 小于 1 时关闭自动清理；每天 03:15 分批删除超期会话。
+    retention-days: ${CHAT_RETENTION_DAYS:365}
+    retention-batch-size: ${CHAT_RETENTION_BATCH_SIZE:500}
+    retention-cleanup-cron: ${CHAT_RETENTION_CLEANUP_CRON:0 15 3 * * *}
+    memory:
+      model-input-token-budget: ${CHAT_MEMORY_MODEL_INPUT_TOKEN_BUDGET:12000}
+      reserved-token-budget: ${CHAT_MEMORY_RESERVED_TOKEN_BUDGET:4000}
+      memory-token-budget: ${CHAT_MEMORY_TOKEN_BUDGET:2000}
+      raw-recent-token-target: ${CHAT_MEMORY_RAW_RECENT_TOKEN_TARGET:5000}
+      max-candidate-turns: ${CHAT_MEMORY_MAX_CANDIDATE_TURNS:100}
+      max-summary-chars: ${CHAT_MEMORY_MAX_SUMMARY_CHARS:6000}
+      max-facts-in-context: ${CHAT_MEMORY_MAX_FACTS_IN_CONTEXT:50}
