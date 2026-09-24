@@ -1,7 +1,7 @@
 <template>
   <section class="knowledge-page container">
     <header class="knowledge-head">
-      <div><p class="eyebrow">管理员工作台 / KNOWLEDGE</p><h1>让每一次回答，有据可依。</h1><p class="intro">维护情感陪伴的知识文档。修改成功后，新的内容即可用于问答。</p></div>
+      <div><p class="eyebrow">管理员 / 知识文档</p><h1>管理问答会查阅的资料</h1><p class="intro">这里的文档会参与情感陪伴问答。保存后，新内容立即进入检索。</p></div>
       <div class="head-actions">
         <input ref="fileInput" type="file" accept=".md,.txt,text/plain,text/markdown" class="file-input" aria-label="选择知识文档" @change="upload" />
         <button class="btn primary" :disabled="busy" @click="chooseFile">＋ 上传文档</button>
