@@ -3,6 +3,7 @@ package com.lyh.liuaiagent.agent;
 import cn.hutool.core.collection.CollUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.lyh.liuaiagent.agent.model.AgentState;
+import com.lyh.liuaiagent.generated.GeneratedFileReference;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,9 @@ import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.tool.ToolCallback;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @EqualsAndHashCode(callSuper = true)
@@ -38,8 +41,14 @@ public class ToolCallAgent extends ReActAgent{
     //禁止内置的工具调用机制，自己维护上下文
     private final ChatOptions chatOptions;
 
+    // 默认禁止把用户内容、模型回复、工具参数和工具结果写入日志。
+    private final boolean sensitiveLoggingEnabled;
+
     // 只保存模型明确给用户的最终答复，工具执行结果绝不直接进入 SSE 正文。
     private String finalAnswer;
+
+    // 工具生成的附件引用由程序保留，避免模型总结时遗漏下载入口。
+    private final Set<GeneratedFileReference> generatedFiles = new LinkedHashSet<>();
 
     private static final String FINAL_RESPONSE_PROMPT = """
             请根据用户原始问题和已经完成的工具执行结果，给出最终答复。
@@ -49,8 +58,13 @@ public class ToolCallAgent extends ReActAgent{
             """;
 
     public ToolCallAgent(ToolCallback[] availableTools){
+        this(availableTools, false);
+    }
+
+    public ToolCallAgent(ToolCallback[] availableTools, boolean sensitiveLoggingEnabled){
         super();
         this.availableTools = availableTools;
+        this.sensitiveLoggingEnabled = sensitiveLoggingEnabled;
         this.toolCallingManager=ToolCallingManager.builder().build();
         //禁用Spring AI内置的工具调用机制，自己维护选项和消息上下文
         this.chatOptions= DashScopeChatOptions.builder()
@@ -84,15 +98,19 @@ public class ToolCallAgent extends ReActAgent{
             // 输出提示信息
             String result = assistantMessage.getText();
             List<AssistantMessage.ToolCall> toolCallList = assistantMessage.getToolCalls();
-            log.info(getName() + "的思考: " + result);
-            log.info(getName() + "选择了 " + toolCallList.size() + " 个工具来使用");
+            if (sensitiveLoggingEnabled) log.info("{} 的模型回复: {}", getName(), result);
             String toolCallInfo = toolCallList.stream()
                     .map(toolCall -> String.format("工具名称：%s，参数：%s",
                             toolCall.name(),
                             toolCall.arguments())
                     )
                     .collect(Collectors.joining("\n"));
-            log.info(toolCallInfo);
+            if (sensitiveLoggingEnabled) {
+                log.info(toolCallInfo);
+            } else {
+                log.info("{} 选择了 {} 个工具: {}", getName(), toolCallList.size(),
+                        toolCallList.stream().map(AssistantMessage.ToolCall::name).collect(Collectors.joining(", ")));
+            }
             if (toolCallList.isEmpty()) {
                 // 只有不调用工具时，才记录助手消息
                 getMessageList().add(assistantMessage);
@@ -103,7 +121,11 @@ public class ToolCallAgent extends ReActAgent{
                 return true;
             }
         } catch (Exception e) {
-            log.error(getName() + "的思考过程遇到了问题: " + e.getMessage());
+            if (sensitiveLoggingEnabled) {
+                log.error("{} 的思考过程遇到了问题", getName(), e);
+            } else {
+                log.error("{} 的思考过程失败（{}）", getName(), e.getClass().getSimpleName());
+            }
             throw new IllegalStateException("智能体思考失败", e);
         }
     }
@@ -124,6 +146,9 @@ public class ToolCallAgent extends ReActAgent{
         setMessageList(new java.util.ArrayList<>(toolExecutionResult.conversationHistory()));
         //当前工具调用的结果
         ToolResponseMessage toolResponseMessage=(ToolResponseMessage) CollUtil.getLast(toolExecutionResult.conversationHistory());
+        int generatedFileCountBefore = generatedFiles.size();
+        toolResponseMessage.getResponses().forEach(response ->
+                generatedFiles.addAll(GeneratedFileReference.findAll(String.valueOf(response.responseData()))));
         String results=toolResponseMessage.getResponses().stream()
                 .map(response ->"工具 "+response.name()+" 完成了它的任务！结果: "+response.responseData())
                 .collect(Collectors.joining("\n"));
@@ -133,13 +158,22 @@ public class ToolCallAgent extends ReActAgent{
         if(terminateToolCalled){
             setState(AgentState.FINISHED);
         }
-        log.info(results);
+        if (generatedFiles.size() > generatedFileCountBefore) {
+            finalAnswer = "已按你的要求生成 Markdown 文件，可点击下方链接下载。";
+            setState(AgentState.FINISHED);
+        }
+        if (sensitiveLoggingEnabled) {
+            log.info(results);
+        } else {
+            log.info("{} 个工具执行完成: {}", toolResponseMessage.getResponses().size(),
+                    toolResponseMessage.getResponses().stream().map(response -> response.name()).collect(Collectors.joining(", ")));
+        }
         return results;
     }
 
     @Override
     protected String buildUserFacingResult(String lastStepResult, boolean reachedStepLimit) {
-        if (finalAnswer != null && !finalAnswer.isBlank()) return finalAnswer;
+        if (finalAnswer != null && !finalAnswer.isBlank()) return attachGeneratedFiles(finalAnswer);
 
         // 终止工具或步骤上限结束时，最后一步仍是内部工具结果；再让模型整理一次最终答复。
         try {
@@ -151,12 +185,28 @@ public class ToolCallAgent extends ReActAgent{
                     .chatResponse();
             if (response != null && response.getResult() != null) {
                 String answer = response.getResult().getOutput().getText();
-                if (answer != null && !answer.isBlank()) return answer;
+                if (answer != null && !answer.isBlank()) return attachGeneratedFiles(answer);
             }
         } catch (Exception error) {
-            log.warn("整理智能体最终答复失败", error);
+            if (sensitiveLoggingEnabled) {
+                log.warn("整理智能体最终答复失败", error);
+            } else {
+                log.warn("整理智能体最终答复失败（{}）", error.getClass().getSimpleName());
+            }
         }
-        return reachedStepLimit ? "任务处理时间较长，已停止继续执行。请缩小问题范围后重试。" : "任务已处理完成。";
+        String fallback = reachedStepLimit
+                ? "任务处理时间较长，已停止继续执行。请缩小问题范围后重试。"
+                : "任务已处理完成。";
+        return attachGeneratedFiles(fallback);
+    }
+
+    private String attachGeneratedFiles(String answer) {
+        String cleanAnswer = GeneratedFileReference.removeMarkers(answer);
+        if (generatedFiles.isEmpty()) return cleanAnswer;
+        String markers = generatedFiles.stream()
+                .map(GeneratedFileReference::marker)
+                .collect(Collectors.joining("\n"));
+        return cleanAnswer + "\n\n" + markers;
     }
 
 }

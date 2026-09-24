@@ -1,6 +1,7 @@
 package com.lyh.liuaiagent.agent;
 
 import com.lyh.liuaiagent.agent.model.AgentState;
+import com.lyh.liuaiagent.generated.GeneratedFileReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -74,5 +75,18 @@ class BaseAgentStreamOutputTest {
                 "工具 doTerminate 完成了它的任务！结果: 任务结束", false);
 
         assertEquals("文件已经创建完成。", answer);
+    }
+
+    @Test
+    void toolCallAgentKeepsGeneratedFileReferenceInFinalAnswer() {
+        ToolCallAgent agent = new ToolCallAgent(new ToolCallback[0]);
+        GeneratedFileReference reference = new GeneratedFileReference(
+                "00000000-0000-0000-0000-000000000001", "学习计划.md");
+        agent.getGeneratedFiles().add(reference);
+        agent.setFinalAnswer("学习计划已经整理完成。" + reference.marker());
+
+        String answer = agent.buildUserFacingResult("内部工具输出", false);
+
+        assertEquals("学习计划已经整理完成。\n\n" + reference.marker(), answer);
     }
 }
