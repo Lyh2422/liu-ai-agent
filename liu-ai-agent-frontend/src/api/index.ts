@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
 import { authState, clearAuth } from '../stores/auth'
 
-const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8123/api'
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8123/api'
 
 export function getAuthToken() {
   return authState.token || localStorage.getItem('liu_ai_token') || ''
@@ -31,8 +31,6 @@ api.interceptors.request.use(
   (config) => {
     const token = getAuthToken()
     if (token) config.headers.Authorization = `Bearer ${token}`
-    console.log('当前环境 API 地址:', api.defaults.baseURL)
-    console.log('API Request:', config.method?.toUpperCase(), config.url)
     return config
   },
   (error) => {
@@ -42,10 +40,7 @@ api.interceptors.request.use(
 )
 
 api.interceptors.response.use(
-  (response: AxiosResponse) => {
-    console.log('API Response:', response.status, response.config.url)
-    return response
-  },
+  (response: AxiosResponse) => response,
   (error) => {
     const errInfo = error.response 
       ? `[${error.response.status}] ${error.response.config.url}`
@@ -67,6 +62,7 @@ export interface ManusAppChatParams {
 
 export interface User {
   id: number
+  publicId: string
   username: string
   role: 'ADMIN' | 'USER'
   enabled: boolean
@@ -122,6 +118,7 @@ export const conversationApi = {
   list: (appType: AppType) => api.get<Conversation[]>('/ai/conversations', { params: { appType } }),
   create: (appType: AppType) => api.post<Conversation>('/ai/conversations', { appType }),
   detail: (id: string) => api.get<ConversationDetail>(`/ai/conversations/${encodeURIComponent(id)}`),
+  remove: (id: string) => api.delete<void>(`/ai/conversations/${encodeURIComponent(id)}`),
   stream: (appType: AppType, chatId: string, message: string, signal: AbortSignal) =>
     fetch(`${api.defaults.baseURL}/ai/${appType === 'LOVE' ? 'love_app/chat/sse' : 'manus/chat'}`, {
       method: 'POST',
@@ -129,6 +126,24 @@ export const conversationApi = {
       headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ chatId, message })
     })
+}
+
+export const systemApi = {
+  health: () => api.get<string>('/health', { responseType: 'text', timeout: 5000 })
+}
+
+export const generatedFileApi = {
+  download: async (id: string) => {
+    const response = await fetch(`${API_BASE_URL}/ai/generated-files/${encodeURIComponent(id)}`, {
+      headers: { Accept: 'text/markdown', ...authHeaders() }
+    })
+    if (response.status === 401) handleUnauthorized()
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      throw new Error(body?.message || `文件下载失败（HTTP ${response.status}）`)
+    }
+    return response.blob()
+  }
 }
 
 export const http = {
@@ -161,9 +176,57 @@ export const authApi = {
   }
 }
 
+export interface PublicUser {
+  publicId: string
+  username: string
+  avatarUrl?: string | null
+  signature?: string | null
+}
+
+export type SocialRoomType = 'DIRECT' | 'GROUP'
+
+export interface SocialRoom {
+  id: string
+  type: SocialRoomType
+  name: string
+  ownerPublicId?: string | null
+  members: PublicUser[]
+  lastMessage?: string | null
+  lastMessageAt?: string | null
+  unreadCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SocialMessage {
+  id: string
+  roomId: string
+  sender: PublicUser
+  content: string
+  createdAt: string
+}
+
+export const socialApi = {
+  friends: () => api.get<PublicUser[]>('/social/friends'),
+  addFriend: (publicId: string) => api.post<PublicUser>('/social/friends', { publicId }),
+  removeFriend: (publicId: string) => api.delete(`/social/friends/${encodeURIComponent(publicId)}`),
+  rooms: () => api.get<SocialRoom[]>('/social/chats'),
+  unreadCount: () => api.get<{ unreadCount: number }>('/social/unread-count'),
+  room: (roomId: string) => api.get<SocialRoom>(`/social/chats/${encodeURIComponent(roomId)}`),
+  openDirect: (publicId: string) => api.post<SocialRoom>('/social/chats/direct', { publicId }),
+  createGroup: (name: string, memberPublicIds: string[]) =>
+    api.post<SocialRoom>('/social/chats/groups', { name, memberPublicIds }),
+  invite: (roomId: string, publicId: string) =>
+    api.post<SocialRoom>(`/social/chats/${encodeURIComponent(roomId)}/members`, { publicId }),
+  messages: (roomId: string) =>
+    api.get<SocialMessage[]>(`/social/chats/${encodeURIComponent(roomId)}/messages`),
+  sendMessage: (roomId: string, content: string) =>
+    api.post<SocialMessage>(`/social/chats/${encodeURIComponent(roomId)}/messages`, { content })
+}
+
 export const adminApi = {
   listUsers: (params?: { keyword?: string; page?: number; size?: number }) =>
-    api.get<{ content: User[]; totalElements: number; totalPages: number }>('/admin/users', { params }),
+    api.get<{ content: User[]; page: number; size: number; totalElements: number; totalPages: number }>('/admin/users', { params }),
   updateUser: (id: number, payload: Partial<ProfilePayload> & { role?: User['role']; enabled?: boolean }) =>
     api.put<User>(`/admin/users/${id}`, payload)
 }

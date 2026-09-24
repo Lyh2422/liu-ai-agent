@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="校园助手头像">
+  <rect width="96" height="96" rx="28" fill="#EEE2D0"/>
+  <path d="M18 39 48 22l30 17-30 17-30-17Z" fill="#A65A43"/>
+  <path d="M30 49v16c10 9 26 9 36 0V49" fill="#C9785E"/>
+  <path d="M76 41v22" stroke="#6D3C31" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="76" cy="68" r="4" fill="#6D3C31"/>
+</svg>

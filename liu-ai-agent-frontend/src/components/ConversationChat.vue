@@ -1,11 +1,14 @@
 <template>
   <div class="conversation-layout">
     <aside class="history" aria-label="历史会话">
-      <div class="history-heading"><span class="history-kicker">留住每一次交流</span><h2>我的会话</h2></div>
-      <button class="btn primary new-chat" :disabled="busy" @click="createConversation">＋ 新建会话</button>
-      <div class="history-label"><span>历史对话 · {{ conversations.length }}</span><button class="refresh" :disabled="busy" @click="initialize">刷新</button></div>
+      <div class="history-heading"><span class="history-kicker">对话记录</span><h2>{{ appType === 'LOVE' ? '我的心事' : '我的问答' }}</h2></div>
+      <div class="history-actions">
+        <button class="btn primary new-chat" :disabled="busy" @click="createConversation">写一页新的</button>
+        <button class="delete-chat" :disabled="busy || remoteGenerating || !chatId" @click="deleteCurrentConversation">删除当前</button>
+      </div>
+      <div class="history-label"><span>共 {{ conversations.length }} 条</span><button class="refresh" :disabled="busy" @click="initialize">重新载入</button></div>
       <p v-if="initializing" class="history-hint" role="status">正在读取历史…</p>
-      <p v-else-if="!conversations.length" class="history-hint">还没有会话。<br>从右侧发出第一条消息吧。</p>
+      <p v-else-if="!conversations.length" class="history-hint">这里还是空的。<br>右边发出第一句话就会留下记录。</p>
       <nav class="history-list" aria-label="选择会话">
         <button v-for="item in conversations" :key="item.id" class="history-item"
           :class="{ active: item.id === chatId }" :aria-current="item.id === chatId ? 'page' : undefined"
@@ -14,15 +17,17 @@
           <time :datetime="item.updatedAt">{{ formatDate(item.updatedAt) }}</time>
         </button>
       </nav>
-      <p class="history-footnote">会话跟随当前账号保存<br>下次回来，可以接着聊</p>
+      <p class="history-footnote">记录只跟随当前账号保存。<br>下次回来还能从这里接着聊。</p>
     </aside>
     <section class="workspace" aria-label="对话窗口">
       <div v-if="error" class="error-banner" role="alert">{{ error }}<button @click="error = ''" aria-label="关闭提示">×</button></div>
       <ChatWindow :chat-id="chatId" :messages="messages" :loading="busy || remoteGenerating"
         :on-submit="send" :assistant-avatar="assistantAvatar"
-        :subtitle="appType === 'MANUS' ? '整理思路 · 拆解任务 · 智能协作' : undefined"
-        :empty-title="appType === 'MANUS' ? '今天有什么事情想一起解决？' : undefined"
-        :placeholder="appType === 'MANUS' ? '描述你的问题或任务…' : undefined">
+        :mode="appType"
+        :render-assistant-markdown="true"
+        :subtitle="appType === 'MANUS' ? '作业思路、社团方案、资料整理，都可以从这里开始' : undefined"
+        :empty-title="appType === 'MANUS' ? '今天卡在哪件校园小事上？' : undefined"
+        :placeholder="appType === 'MANUS' ? '把问题或任务写下来…' : undefined">
         <template #title><h2>{{ title }}</h2></template>
       </ChatWindow>
     </section>
@@ -113,6 +118,28 @@ async function createConversation() {
   } catch (cause) { error.value = '新建失败：' + errorMessage(cause) }
   finally { navigating.value = false }
 }
+async function deleteCurrentConversation() {
+  if (busy.value || remoteGenerating.value || !chatId.value) return
+  if (!window.confirm('确定删除当前会话及其全部消息吗？删除后无法恢复。')) return
+  navigating.value = true
+  error.value = ''
+  clearTimeout(poll)
+  const id = chatId.value
+  let nextId = ''
+  try {
+    await conversationApi.remove(id)
+    if (!alive) return
+    conversations.value = conversations.value.filter(item => item.id !== id)
+    chatId.value = ''
+    messages.value = []
+    const query = { ...route.query }
+    delete query.chat
+    await router.replace({ query })
+    nextId = conversations.value[0]?.id || ''
+  } catch (cause) { error.value = '删除失败：' + errorMessage(cause) }
+  finally { navigating.value = false }
+  if (nextId && alive) await selectConversation(nextId)
+}
 async function send(text: string) {
   if (busy.value || remoteGenerating.value) return
   if (!chatId.value) await createConversation()
@@ -152,35 +179,41 @@ onUnmounted(() => { alive = false; controller?.abort(); clearTimeout(poll) })
 </script>
 
 <style scoped>
-.conversation-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: calc(100dvh - 68px); overflow: hidden; }
-.history { display: flex; flex-direction: column; gap: 18px; min-height: 0; padding: 30px 20px 20px; background: var(--bg-soft); border-right: 1px solid var(--border); }
-.history-kicker { display: block; color: var(--accent-strong); font-size: 11px; letter-spacing: .12em; margin-bottom: 8px; }
+.conversation-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); height: calc(100dvh - 72px); overflow: hidden; }
+.history { position: relative; display: flex; flex-direction: column; gap: 18px; min-height: 0; padding: 30px 20px 20px; background: rgba(238, 232, 220, .8); border-right: 1px solid var(--border); }
+.history::before { content: ''; position: absolute; top: 0; right: 22px; width: 1px; height: 100%; background: rgba(201, 110, 85, .18); }
+.history > * { position: relative; }
+.history-kicker { display: block; color: var(--coral-dark); font-size: 11px; font-weight: 700; letter-spacing: .12em; margin-bottom: 8px; }
 .history-heading h2 { font-size: 26px; }
+.history-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .new-chat { justify-content: center; width: 100%; }
+.delete-chat { padding: 8px 10px; border: 1px solid rgba(167, 65, 52, .3); border-radius: 8px; color: var(--danger); background: transparent; cursor: pointer; }
+.delete-chat:hover:not(:disabled) { background: rgba(167, 65, 52, .08); }
 .history-label { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 8px; }
 .refresh { border: 0; background: transparent; color: var(--accent-strong); cursor: pointer; padding: 5px; }
 .history-list { overflow-y: auto; min-height: 0; flex: 1; }
-.history-item { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 14px 12px; margin-bottom: 8px; text-align: left; border: 1px solid transparent; border-radius: 12px; color: var(--text); background: transparent; cursor: pointer; }
-.history-item:hover { background: var(--muted-surface); }
-.history-item.active { background: #f3e4d6; border-color: var(--border); box-shadow: inset 3px 0 var(--primary); }
+.history-item { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 14px 12px; margin-bottom: 8px; text-align: left; border: 1px solid transparent; border-radius: 4px 14px 4px 14px; color: var(--text); background: transparent; cursor: pointer; }
+.history-item:hover { background: rgba(255, 255, 255, .5); }
+.history-item.active { background: var(--surface); border-color: var(--border); box-shadow: inset 3px 0 var(--coral), var(--shadow-small); }
 .conversation-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .history-item time { font-size: 11px; color: var(--muted); }
 .history-hint, .history-footnote { color: var(--muted); font-size: 12px; line-height: 1.8; }
 .history-footnote { margin-top: auto; border-top: 1px solid var(--border); padding-top: 16px; }
 .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .workspace :deep(.chat) { flex: 1; }
-.error-banner { display: flex; justify-content: space-between; padding: 10px 20px; color: var(--danger); background: #fff1ea; font-size: 13px; }
+.error-banner { display: flex; justify-content: space-between; padding: 10px 20px; color: var(--danger); background: #f8e7e2; font-size: 13px; }
 .error-banner button { background: transparent; border: 0; color: inherit; cursor: pointer; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media (max-width: 760px) {
-  .conversation-layout { height: calc(100dvh - 78px); }
+  .conversation-layout { height: calc(100dvh - 126px); }
 }
 @media (max-width: 700px) {
   .conversation-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .history { padding: 12px 14px; gap: 10px; border-right: 0; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; }
   .history-heading h2 { font-size: 18px; }
   .history-kicker, .history-footnote { display: none; }
+  .history-actions { align-self: start; }
   .history-label { grid-column: 1 / -1; margin-top: 0; }
   .new-chat { padding: 8px 12px; }
   .history-list { display: flex; gap: 8px; grid-column: 1 / -1; overflow-x: auto; }
