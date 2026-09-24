@@ -7,6 +7,7 @@ const ManusApp = () => import('../views/ManusApp.vue')
 const Login = () => import('../views/Login.vue')
 const Register = () => import('../views/Register.vue')
 const Profile = () => import('../views/Profile.vue')
+const Messages = () => import('../views/Messages.vue')
 const AdminKnowledge = () => import('../views/AdminKnowledge.vue')
 const AdminUsers = () => import('../views/AdminUsers.vue')
 
@@ -17,6 +18,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/love', name: 'love', component: LoveApp, meta: { requiresAuth: true } },
   { path: '/manus', name: 'manus', component: ManusApp, meta: { requiresAuth: true } },
   { path: '/profile', name: 'profile', component: Profile, meta: { requiresAuth: true } },
+  { path: '/messages/:roomId?', name: 'messages', component: Messages, meta: { requiresAuth: true } },
   { path: '/admin/knowledge', name: 'admin-knowledge', component: AdminKnowledge, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/users', name: 'admin-users', component: AdminUsers, meta: { requiresAuth: true, requiresAdmin: true } }
 ]
