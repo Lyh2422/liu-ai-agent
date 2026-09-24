@@ -16,6 +16,45 @@ import static org.mockito.Mockito.*;
 class LoveAppHybridDocumentRetrieverTest {
 
     @Test
+    void rejectsWeakVectorCandidatesBeforeFusionAndKeepsRawScoresForDiagnostics() {
+        var expansion = new LoveAppKeywordExpansionService();
+        var corpus = mock(LoveAppRetrievalCorpus.class);
+        var vectors = mock(VectorStore.class);
+        var vectorDocument = Document.builder().id("vector").text("相关片段").score(0.88d).build();
+        when(vectors.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(vectorDocument));
+        when(corpus.bm25Search("星河", 5)).thenReturn(List.of(
+                new LoveAppRetrievalCorpus.ScoredDocument(vectorDocument, 1.25d)));
+
+        var results = new LoveAppHybridDocumentRetriever(vectors, corpus, expansion).retrieve(new Query("星河"));
+
+        var request = org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectors).similaritySearch(request.capture());
+        assertEquals(LoveAppRagProperties.DEFAULT_VECTOR_SIMILARITY_THRESHOLD,
+                request.getValue().getSimilarityThreshold(), 1e-12);
+        assertEquals(0.88d, (double) results.getFirst().getMetadata().get("vector_score"), 1e-12);
+        assertEquals(1.25d, (double) results.getFirst().getMetadata().get("bm25_score"), 1e-12);
+    }
+
+    @Test
+    void allowsAValidatedDeploymentSpecificVectorThreshold() {
+        var properties = new LoveAppRagProperties();
+        properties.setVectorSimilarityThreshold(0.81d);
+        var vectors = mock(VectorStore.class);
+        when(vectors.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+        var corpus = mock(LoveAppRetrievalCorpus.class);
+
+        new LoveAppHybridDocumentRetriever(vectors, corpus, new LoveAppKeywordExpansionService(), properties)
+                .retrieve(new Query("星河"));
+
+        var request = org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectors).similaritySearch(request.capture());
+        assertEquals(0.81d, request.getValue().getSimilarityThreshold(), 1e-12);
+        properties.setVectorSimilarityThreshold(1.01d);
+        assertThrows(IllegalArgumentException.class,
+                () -> new LoveAppHybridDocumentRetriever(vectors, corpus, new LoveAppKeywordExpansionService(), properties));
+    }
+
+    @Test
     void fallsBackToAllBm25VariantsOnConnectionResetAndRetriesVectorsOnNextRequest() {
         var expansion = new LoveAppKeywordExpansionService();
         var corpus = new LoveAppRetrievalCorpusForTest(List.of(doc("space", "个人空间和联系频率")), expansion);

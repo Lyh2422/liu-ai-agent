@@ -2,13 +2,15 @@ package com.lyh.liuaiagent.rag;
 
 import org.springframework.ai.chat.client.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
 /**
  * 自定义混合召回 RAG 增强顾问
  */
+@Configuration
+@EnableConfigurationProperties(LoveAppRagProperties.class)
 public class LoveAppRagCloudAdvisorConfig {
 
     private final LoveAppHybridDocumentRetriever loveAppHybridDocumentRetriever;
@@ -21,7 +23,7 @@ public class LoveAppRagCloudAdvisorConfig {
     public Advisor loveAppRagCloudAdvisor() {
         return RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(loveAppHybridDocumentRetriever)
-                .queryAugmenter(org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter.builder().allowEmptyContext(true).build())
+                .queryAugmenter(new LoveAppContextualQueryAugmenter())
                 .build();
     }
 

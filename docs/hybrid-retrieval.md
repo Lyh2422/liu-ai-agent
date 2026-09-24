@@ -14,6 +14,8 @@
 | 查询版本 | 原句必保留；命中规则时增加一个扩展版本，不再把大量字符碎片当作向量查询 |
 | BM25 | 文档保留重复词计数，查询词去重；空查询、无匹配和非正 topK 返回空结果 |
 | RRF | 每张候选榜内按片段 ID 去重；复制元数据后添加分数，避免修改索引中的原文档 |
+| 弱命中过滤 | 向量候选先经过可配置的相似度阈值，再进入 RRF，避免“总能搜到几个”被误判为有效知识 |
+| 空上下文 | 保留用户原问题；一般情感困扰继续给有边界的常识建议，校内事实则明确不编造并引导官方核实 |
 
 没有新增第三方分词依赖。这是适配当前恋爱知识库的轻量词典分词器，不是 Jieba、HanLP 或通用中文语言理解模型。
 
@@ -40,7 +42,7 @@ BM25 用这些词寻找直接相关的片段；向量检索根据模型计算的
 flowchart TD
     U[用户当前提问] --> N[规范化：全半角、小写、标点]
     N --> E[原句 + 可选领域扩展版本]
-    E --> V[向量相似度召回：每版本 top 5]
+    E --> V[向量相似度召回：每版本 top 5 + 相关性阈值]
     E --> T[共享分词器：领域词典 + 未知词兜底]
     T --> B[BM25 关键词召回：每版本 top 5]
     V --> R[RRF 融合：按片段 ID 合并]
@@ -102,9 +104,32 @@ RRF(d) = Σ 1 / (60 + rank_i(d))
 
 例如某片段在向量榜第 2、BM25 榜第 1，融合分数是 `1/62 + 1/61 ≈ 0.03252`。只在一张榜第 1 的片段得分约 `0.01639`。最终按融合分降序取 6 个片段，不直接相加量纲不同的向量分和 BM25 分。
 
-结果保留 `hybrid_score` 和 `hybrid_sources` 元数据，后者表示 `vector`、`bm25` 或两者。它们用于追踪检索来源，不是答案正确率或置信概率。检索结果的元数据与索引文档隔离。
+向量候选默认先使用 `0.72` 相似度阈值过滤，再参与 RRF。可以通过环境变量 `LOVE_APP_RAG_VECTOR_SIMILARITY_THRESHOLD` 调整，取值范围为 `0～1`。这个默认值是安全起点，不是所有 embedding 模型通用的最佳值；上线后应使用人工标注的真实提问集，在误召回和漏召回之间校准。
 
-### 4. 真实聊天接入与知识更新
+结果保留 `hybrid_score` 和 `hybrid_sources` 元数据，后者表示 `vector`、`bm25` 或两者；如果底层检索返回原始分数，还会记录 `vector_score` 和 `bm25_score`，便于离线评测和排查。RRF 分数用于排序，不是答案正确率或置信概率。检索结果的元数据与索引文档隔离。
+
+### 4. 未命中的回答策略
+
+原先 `allowEmptyContext(true)` 在没有结果时会直接把原问题交给模型。模型不知道这次没有可靠资料，仍可能把通用常识说成校内事实。直接改成框架默认的拒答也不合适：默认空上下文提示会替换掉原问题，而且“失恋后睡不着怎么办”这类问题即使不在知识库中，也应该得到基本的情绪支持。
+
+现在由 `LoveAppContextualQueryAugmenter` 分两路处理：
+
+```text
+检索到可靠资料
+  → 注入资料
+  → 校内可核验事实只能来自资料
+  → 一般建议可以结合常识，但不得冒充校方结论
+
+没有检索到可靠资料
+  → 保留用户原问题
+  → 情绪倾诉 / 关系相处：继续给温和、具体的一般建议
+  → 校规 / 机构 / 电话 / 费用 / 时间：说明暂未查到，引导官方核实
+  → 安全危机：优先现实求助，不等待知识库命中
+```
+
+对用户不暴露“RAG”“知识库未命中”等技术词，避免机械拒答；对事实边界则保持透明。向量服务异常仍会记录后端告警并降级到本地 BM25。若两路都没有结果，走上述空上下文策略；这与聊天模型本身不可用导致的生成失败是两种不同情况。
+
+### 5. 真实聊天接入与知识更新
 
 情感聊天调用链已经存在，本次继续使用：
 
@@ -127,23 +152,25 @@ Advisor 把检索片段注入模型上下文，历史会话仍由原来的会话
 运行本次检索测试及相关回归：
 
 ```sh
-mvn -o -Dtest='LoveAppKeywordExpansionServiceTest,LoveAppRetrievalCorpusTest,LoveAppHybridDocumentRetrieverTest,LoveAppKnowledgeRecallTest,KnowledgeManagementTest,KnowledgeSecurityTest,ConversationPersistenceTest,ConversationControllerTest,LoveHistoryPromptTest,ConversationSecurityStreamTest,AuthServiceTest' test
+mvn -o -Dtest='LoveAppKeywordExpansionServiceTest,LoveAppRetrievalCorpusTest,LoveAppHybridDocumentRetrieverTest,LoveAppContextualQueryAugmenterTest,LoveAppKnowledgeRecallTest,KnowledgeManagementTest,KnowledgeSecurityTest,ConversationRagResilienceTest,ConversationPersistenceTest,ConversationControllerTest,LoveHistoryPromptTest,ConversationSecurityStreamTest,AuthServiceTest' test
 ```
 
-本次执行结果：42 项测试通过，0 失败、0 错误、0 跳过。测试覆盖：
+相关检索、知识管理、会话与鉴权回归执行结果：52 项测试通过，0 失败、0 错误、0 跳过。测试覆盖：
 
 - 词典切词、全半角中英文一致性、词频保留、未知词、扩展上限和确定性。
 - BM25 数值公式、重复查询词去重、稀有词、长文档归一化及空结果。
 - 向量返回空时，原始 BM25 无词项交集的口语问题，通过扩展召回正式术语片段。
 - RRF 精确计分、候选去重、最终数量和不污染索引元数据。
+- 向量阈值传递、非法配置拦截，以及向量/BM25 原始分数可观测性。
+- 有资料与无资料两类 Prompt；无资料时原问题、历史和上下文均不会丢失。
 - 使用项目实际 Markdown 和生产切片逻辑，检查 6 个口语问题的前三个结果是否包含目标主题与内容；向量通道使用空结果桩。
 - 知识库增删改、持久化、权限、历史会话，以及检索资料进入实际聊天 Prompt。
 
 6 个定向回归样例通过，不能据此宣称线上 Recall@K 提升了某个百分比。真实效果还需要人工标注“问题—相关片段”，对比纯向量、纯 BM25、扩展 BM25、混合检索的 Recall@K、MRR 和响应耗时。测试使用模型桩，没有调用真实外部大模型计算业务命中率。
 
-向量查询发生 HTTP 客户端异常（例如连接重置、读取响应时连接关闭）时，本次请求继续执行所有查询版本的 BM25，并停止重复调用故障向量接口；下一次请求重新尝试向量检索。如果 BM25 也没有命中，现有 Advisor 允许空上下文，模型继续普通对话。本地编程错误不会被当作远端故障吞掉。
+向量查询发生 HTTP 客户端异常（例如连接重置、读取响应时连接关闭）时，本次请求继续执行所有查询版本的 BM25，并停止重复调用故障向量接口；下一次请求重新尝试向量检索。如果 BM25 也没有命中，自定义 Query Augmenter 会切换到上述有边界的空上下文策略。本地编程错误不会被当作远端故障吞掉。
 
-当前向量检索没有相关性阈值过滤；RRF 本身不会判断资料是否足以回答问题。聊天模型服务自身不可用时仍会返回失败，降级不能替代模型生成。大规模知识库、通用中文分词和上下文指代改写需要单独扩展。
+RRF 本身仍不会判断答案是否正确；`0.72` 阈值必须结合所用 embedding 模型和真实标注数据校准。聊天模型服务自身不可用时仍会返回失败，检索降级不能替代模型生成。大规模知识库、通用中文分词和上下文指代改写需要单独扩展。
 
 ## 术语对应与自测
 
