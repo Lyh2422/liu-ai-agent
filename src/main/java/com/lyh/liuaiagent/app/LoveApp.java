@@ -2,7 +2,6 @@ package com.lyh.liuaiagent.app;
 
 
 import com.lyh.liuaiagent.advisor.MyLoggerAdvisor;
-import com.lyh.liuaiagent.chatmemory.FileBasedChatMemory;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -16,6 +15,8 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
@@ -30,6 +31,7 @@ public class LoveApp {
 
     private final ChatClient chatClient;
     private final ChatClient historyChatClient;
+    private final boolean sensitiveLoggingEnabled;
 
     @Resource
     private Advisor loveAppRagCloudAdvisor;
@@ -50,20 +52,24 @@ public class LoveApp {
             "注意：不说教，不评判，遇到“被贬低、太委屈”这类情况，温和提醒：“健康的恋爱是舒服的，实在难受可以找学校心理老师聊聊呀～”";
 
     public LoveApp(ChatModel dashscopeChatModel) {
+        this(dashscopeChatModel, false);
+    }
+
+    @Autowired
+    public LoveApp(ChatModel dashscopeChatModel,
+                   @Value("${app.ai.sensitive-logging-enabled:false}") boolean sensitiveLoggingEnabled) {
+        this.sensitiveLoggingEnabled = sensitiveLoggingEnabled;
         // 会话服务统一保存消息，此客户端接收显式历史，避免 Advisor 重复记忆或跨用户缓存。
         historyChatClient = ChatClient.builder(dashscopeChatModel).defaultSystem(SYSTEM_PROMPT).build();
-        //初始化基于内存的对话记忆
-        //ChatMemory chatMemory=new InMemoryChatMemory();
-        // 初始化基于文件的对话记忆
-        String fileDir = System.getProperty("user.dir") + "/tmp/chat-memory";
-        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
+        // 旧演示方法仅保留进程内记忆；正式会话的唯一持久化来源是 ConversationStore 数据库。
+        ChatMemory chatMemory = new InMemoryChatMemory();
 
         chatClient= ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
                         new MessageChatMemoryAdvisor(chatMemory),
                         //自定义日志 advisor 可按需开启
-                        new MyLoggerAdvisor()
+                        new MyLoggerAdvisor(sensitiveLoggingEnabled)
                         //ReReadingAdvisor拦截器
                         //new ReReadingAdvisor()
                 )
@@ -87,7 +93,7 @@ public class LoveApp {
                         .call()
                 .chatResponse();
         String content=response.getResult().getOutput().getText();
-        log.info("content:{}",content);
+        logCompletion("doChat", content);
         return content;
     }
 
@@ -106,7 +112,7 @@ public class LoveApp {
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY,10))
                 .call()
                 .entity(LoveReport.class);
-        log.info("loveReport: {}", loveReport);
+        logCompletion("doChatWithReport", loveReport);
         return loveReport;
     }
 
@@ -124,7 +130,7 @@ public class LoveApp {
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 // 开启日志，便于观察效果
-                .advisors(new MyLoggerAdvisor())
+                .advisors(new MyLoggerAdvisor(sensitiveLoggingEnabled))
                 // 应用RAG 知识库问答  重点！！
                 //.advisors(new QuestionAnswerAdvisor(loveAppVectorStore))
 
@@ -133,7 +139,7 @@ public class LoveApp {
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
-        log.info("content: {}", content);
+        logCompletion("doChatWithRag", content);
         return content;
     }
 
@@ -153,12 +159,12 @@ public class LoveApp {
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 // 开启日志，便于观察效果
-                .advisors(new MyLoggerAdvisor())
+                .advisors(new MyLoggerAdvisor(sensitiveLoggingEnabled))
                 .tools(allTools)
                 .call()
                 .chatResponse();
         String content = response.getResult().getOutput().getText();
-        log.info("content: {}", content);
+        logCompletion("doChatWithTools", content);
         return content;
     }
 
@@ -178,12 +184,12 @@ public class LoveApp {
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 // 开启日志，便于观察效果
-                .advisors(new MyLoggerAdvisor())
+                .advisors(new MyLoggerAdvisor(sensitiveLoggingEnabled))
                 .tools(toolCallbackProvider)
                 .call()
                 .chatResponse();
         String content = response.getResult().getOutput().getText();
-        log.info("content: {}", content);
+        logCompletion("doChatWithMcp", content);
         return content;
     }
 
@@ -207,6 +213,14 @@ public class LoveApp {
         var prompt = historyChatClient.prompt().messages(history).user(message);
         if (loveAppRagCloudAdvisor != null) prompt.advisors(loveAppRagCloudAdvisor);
         return prompt.stream().content();
+    }
+
+    private void logCompletion(String operation, Object value) {
+        if (sensitiveLoggingEnabled) {
+            log.info("{} result: {}", operation, value);
+        } else {
+            log.debug("{} completed", operation);
+        }
     }
 
 }

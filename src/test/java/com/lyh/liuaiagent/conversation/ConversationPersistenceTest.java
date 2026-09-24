@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import reactor.core.publisher.Flux;
 import javax.sql.DataSource;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -37,7 +39,12 @@ class ConversationPersistenceTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackageClasses = ConversationRepository.class)
-    @Import(ConversationStore.class)
+    @Import({
+            ConversationStore.class,
+            ConversationMemoryManager.class,
+            ContextTokenEstimator.class,
+            ExplicitUserFactExtractor.class
+    })
     static class DatabaseConfig {
         @Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
             var factory = new LocalContainerEntityManagerFactoryBean();
@@ -81,13 +88,14 @@ class ConversationPersistenceTest {
             assertEquals("紧张是", detail.messages().get(3).content());
             assertEquals("INTERRUPTED", detail.messages().get(3).status());
             var next = store.begin(1L, id, Conversation.AppType.LOVE, "我叫什么？");
-            assertEquals(2, next.history().size());
-            assertEquals("我叫小林，周五想表白", next.history().getFirst().getText());
+            assertEquals(3, next.history().size());
+            assertTrue(next.history().getFirst().getText().contains("NAME: 小林"));
+            assertEquals("我叫小林，周五想表白", next.history().get(1).getText());
             assertEquals("小林，我们一起想想。\n先说说你们的关系。", next.history().getLast().getText());
         }
     }
 
-    @Test void usersAppsAndConversationsAreIsolatedAndMemoryIsBounded() {
+    @Test void usersAppsAndConversationsAreIsolatedAndContextUsesTokenBudgetInsteadOfFiveTurns() {
         try (var context = open()) {
             var store = context.getBean(ConversationStore.class);
             String id = store.create(1L, Conversation.AppType.LOVE).getId();
@@ -105,10 +113,103 @@ class ConversationPersistenceTest {
             }
             assertEquals(14, store.detail(1L, id).messages().size());
             var next = store.begin(1L, id, Conversation.AppType.LOVE, "继续");
-            assertEquals(10, next.history().size());
-            assertEquals("问题2", next.history().getFirst().getText());
+            assertEquals(14, next.history().size());
+            assertEquals("问题0", next.history().getFirst().getText());
             assertEquals("回答6", next.history().getLast().getText());
+            var tokens = context.getBean(ContextTokenEstimator.class);
+            assertTrue(next.history().stream().mapToInt(tokens::estimate).sum()
+                    + tokens.estimate("继续") + 4_000 <= 12_000);
             assertTrue(store.begin(1L, other, Conversation.AppType.LOVE, "全新的话题").history().isEmpty());
+        }
+    }
+
+    @Test void explicitFactsCrossConversationsButNeverCrossUsersAndCanBeDeleted() {
+        try (var context = open()) {
+            var store = context.getBean(ConversationStore.class);
+            var memory = context.getBean(ConversationMemoryManager.class);
+            String source = store.create(1L, Conversation.AppType.LOVE).getId();
+            var turn = store.begin(1L, source, Conversation.AppType.LOVE, "我叫小林，我对花生过敏。");
+            store.append(turn.id(), "我记住了。");
+            store.finish(turn.id(), ChatTurn.Status.COMPLETED);
+
+            String nextConversation = store.create(1L, Conversation.AppType.MANUS).getId();
+            var next = store.begin(1L, nextConversation, Conversation.AppType.MANUS, "给我一些建议");
+            assertEquals(1, next.history().size());
+            assertTrue(next.history().getFirst() instanceof org.springframework.ai.chat.messages.SystemMessage);
+            assertTrue(next.history().getFirst().getText().contains("NAME: 小林"));
+            assertTrue(next.history().getFirst().getText().contains("ALLERGY: 花生"));
+
+            String otherUserConversation = store.create(2L, Conversation.AppType.LOVE).getId();
+            assertTrue(store.begin(2L, otherUserConversation, Conversation.AppType.LOVE, "给我建议").history().isEmpty());
+
+            var storedFacts = memory.listFacts(1L);
+            assertEquals(2, storedFacts.size());
+            memory.deleteFact(1L, storedFacts.getFirst().getId());
+            assertEquals(1, memory.listFacts(1L).size());
+            assertThrows(NotFoundException.class, () -> memory.deleteFact(2L, storedFacts.getLast().getId()));
+        }
+    }
+
+    @Test void oldTurnsBecomeBoundedRollingSummaryWhileRecentTurnsStayVerbatim() {
+        try (var context = open()) {
+            var store = context.getBean(ConversationStore.class);
+            String id = store.create(1L, Conversation.AppType.LOVE).getId();
+            for (int i = 0; i < 8; i++) {
+                var turn = store.begin(1L, id, Conversation.AppType.LOVE,
+                        "问题" + i + "：" + "长".repeat(650));
+                store.append(turn.id(), "回答" + i + "：" + "内容".repeat(350));
+                store.finish(turn.id(), ChatTurn.Status.COMPLETED);
+            }
+
+            var persisted = context.getBean(ConversationMemoryRepository.class).findById(id).orElseThrow();
+            assertTrue(persisted.getSummarizedThroughTurnId() > 0);
+            assertFalse(persisted.getSummary().isBlank());
+            assertTrue(persisted.getSummary().length() <= 6_000);
+
+            String current = "请继续";
+            var next = store.begin(1L, id, Conversation.AppType.LOVE, current);
+            assertTrue(next.history().getFirst().getText().contains("较早对话的滚动摘要"));
+            assertTrue(next.history().stream().anyMatch(message -> message.getText().startsWith("问题7")));
+            var tokens = context.getBean(ContextTokenEstimator.class);
+            assertTrue(next.history().stream().mapToInt(tokens::estimate).sum()
+                    + tokens.estimate(current) + 4_000 <= 12_000);
+        }
+    }
+
+    @Test void ownerCanDeleteConversationAndRetentionSkipsRecentOrStreamingConversations() {
+        try (var context = open()) {
+            var store = context.getBean(ConversationStore.class);
+            var conversations = context.getBean(ConversationRepository.class);
+
+            String mine = store.create(1L, Conversation.AppType.LOVE).getId();
+            var mineTurn = store.begin(1L, mine, Conversation.AppType.LOVE, "我叫小明，这是私密内容");
+            store.append(mineTurn.id(), "私密回复");
+            store.finish(mineTurn.id(), ChatTurn.Status.COMPLETED);
+            assertEquals(1, context.getBean(UserMemoryFactRepository.class).count());
+            assertThrows(NotFoundException.class, () -> store.delete(2L, mine));
+            store.delete(1L, mine);
+            assertThrows(NotFoundException.class, () -> store.detail(1L, mine));
+            assertEquals(0, context.getBean(UserMemoryFactRepository.class).count());
+
+            Instant now = Instant.now();
+            Conversation expired = store.create(1L, Conversation.AppType.LOVE);
+            var expiredTurn = store.begin(1L, expired.getId(), Conversation.AppType.LOVE, "旧问题");
+            store.append(expiredTurn.id(), "旧回答");
+            store.finish(expiredTurn.id(), ChatTurn.Status.COMPLETED);
+            expired.setUpdatedAt(now.minus(Duration.ofDays(400)));
+            conversations.saveAndFlush(expired);
+
+            Conversation streaming = store.create(1L, Conversation.AppType.LOVE);
+            store.begin(1L, streaming.getId(), Conversation.AppType.LOVE, "仍在生成");
+            streaming.setUpdatedAt(now.minus(Duration.ofDays(400)));
+            conversations.saveAndFlush(streaming);
+            assertThrows(ConflictException.class, () -> store.delete(1L, streaming.getId()));
+
+            String recent = store.create(1L, Conversation.AppType.LOVE).getId();
+            assertEquals(1, store.deleteExpiredBefore(now.minus(Duration.ofDays(365)), 100));
+            assertThrows(NotFoundException.class, () -> store.detail(1L, expired.getId()));
+            assertNotNull(store.detail(1L, streaming.getId()));
+            assertNotNull(store.detail(1L, recent));
         }
     }
 
@@ -163,7 +264,8 @@ class ConversationPersistenceTest {
                     .doOnNext(event -> {
                         if ("delta".equals(event.event())) assertTrue(store.detail(1L, id).messages().getLast().content().endsWith(event.data()));
                     }).collectList().block();
-            assertEquals(List.of("ack", "delta", "delta", "done"), events.stream().map(e -> e.event()).toList());
+            assertEquals(List.of("ack", "delta", "done"), events.stream().map(e -> e.event()).toList());
+            assertEquals("你好", events.get(1).data());
             assertEquals("COMPLETED", store.detail(1L, id).messages().getLast().status());
             when(love.chatWithHistory(eq("记得吗"), anyList())).thenAnswer(invocation -> {
                 List<org.springframework.ai.chat.messages.Message> history = invocation.getArgument(1);

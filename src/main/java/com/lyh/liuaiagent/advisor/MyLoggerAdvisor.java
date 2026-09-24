@@ -13,6 +13,16 @@ import reactor.core.publisher.Flux;
 @Slf4j
 public class MyLoggerAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
 
+    private final boolean sensitiveLoggingEnabled;
+
+    public MyLoggerAdvisor() {
+        this(false);
+    }
+
+    public MyLoggerAdvisor(boolean sensitiveLoggingEnabled) {
+        this.sensitiveLoggingEnabled = sensitiveLoggingEnabled;
+    }
+
     @Override
     public String getName() {
         return this.getClass().getSimpleName();
@@ -24,12 +34,25 @@ public class MyLoggerAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
     }
 
     private AdvisedRequest before(AdvisedRequest request) {
-        log.info("AI Request: {}", request.userText());
+        if (sensitiveLoggingEnabled) {
+            log.info("AI Request: {}", request.userText());
+        } else {
+            log.debug("AI request received (userChars={})", length(request.userText()));
+        }
         return request;
     }
 
     private void observeAfter(AdvisedResponse advisedResponse) {
-        log.info("AI Response: {}", advisedResponse.response().getResult().getOutput().getText());
+        String text = advisedResponse.response().getResult().getOutput().getText();
+        if (sensitiveLoggingEnabled) {
+            log.info("AI Response: {}", text);
+        } else {
+            log.debug("AI response received (assistantChars={})", length(text));
+        }
+    }
+
+    private static int length(String value) {
+        return value == null ? 0 : value.length();
     }
 
     public AdvisedResponse aroundCall(AdvisedRequest advisedRequest, CallAroundAdvisorChain chain) {

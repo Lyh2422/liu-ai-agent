@@ -5,6 +5,7 @@ import com.lyh.liuaiagent.auth.exception.NotFoundException;
 import org.springframework.ai.chat.messages.*;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
@@ -15,9 +16,12 @@ import java.util.*;
 public class ConversationStore {
     private final ConversationRepository conversations;
     private final ChatTurnRepository turns;
-    public ConversationStore(ConversationRepository conversations, ChatTurnRepository turns) {
+    private final ConversationMemoryManager memory;
+    public ConversationStore(ConversationRepository conversations, ChatTurnRepository turns,
+                             ConversationMemoryManager memory) {
         this.conversations = conversations;
         this.turns = turns;
+        this.memory = memory;
     }
 
     public Conversation create(Long userId, Conversation.AppType appType) {
@@ -52,6 +56,28 @@ public class ConversationStore {
         return new Detail(conversation, messages);
     }
 
+    public void delete(Long userId, String id) {
+        Conversation conversation = conversations.lockOwned(id, userId)
+                .orElseThrow(() -> new NotFoundException("会话不存在"));
+        if (turns.existsByConversationIdAndStatus(id, ChatTurn.Status.STREAMING)) {
+            throw new ConflictException("这个会话正在回复，暂时不能删除");
+        }
+        memory.deleteForConversation(id);
+        turns.deleteByConversationId(id);
+        conversations.delete(conversation);
+    }
+
+    /** 删除一批已超过保留期且没有正在生成回复的会话。 */
+    public int deleteExpiredBefore(Instant cutoff, int batchSize) {
+        if (batchSize < 1) throw new IllegalArgumentException("清理批次必须为正数");
+        List<String> ids = conversations.findExpiredIds(cutoff, PageRequest.of(0, batchSize));
+        if (ids.isEmpty()) return 0;
+        memory.deleteForConversations(ids);
+        turns.deleteByConversationIds(ids);
+        conversations.deleteAllByIdInBatch(ids);
+        return ids.size();
+    }
+
     public record StartedTurn(Long id, List<Message> history) {}
 
     public StartedTurn begin(Long userId, String id, Conversation.AppType appType, String message) {
@@ -61,14 +87,8 @@ public class ConversationStore {
         if (turns.existsByConversationIdAndStatus(id, ChatTurn.Status.STREAMING)) {
             throw new ConflictException("这个会话正在回复，请稍后再发送");
         }
-        // 只将完整的最近五轮加入模型上下文；历史页面保留所有轮次，包括中断的内容。
-        List<ChatTurn> recent = new ArrayList<>(turns.findTop5ByConversationIdAndStatusOrderByIdDesc(id, ChatTurn.Status.COMPLETED));
-        Collections.reverse(recent);
-        List<Message> history = new ArrayList<>();
-        for (ChatTurn turn : recent) {
-            history.add(new UserMessage(turn.getUserContent()));
-            history.add(new AssistantMessage(turn.getAssistantContent()));
-        }
+        // 历史页面保留全部轮次；模型上下文由长期事实、滚动摘要和 token 预算内的最近完整轮次组成。
+        List<Message> history = memory.buildContext(conversation, message);
         ChatTurn turn = new ChatTurn();
         turn.setConversation(conversation);
         turn.setUserContent(message);
@@ -78,6 +98,7 @@ public class ConversationStore {
             conversation.setTitle(title.substring(0, Math.min(title.length(), 40)));
         }
         conversation.setUpdatedAt(Instant.now());
+        memory.captureExplicitFacts(conversation, turn, message);
         return new StartedTurn(turn.getId(), history);
     }
 
@@ -93,6 +114,9 @@ public class ConversationStore {
         if (turn.getStatus() == ChatTurn.Status.STREAMING) {
             turn.setStatus(status);
             turn.getConversation().setUpdatedAt(Instant.now());
+            if (status == ChatTurn.Status.COMPLETED) {
+                memory.compactAfterCompletion(turn.getConversation());
+            }
         }
     }
 

@@ -76,6 +76,14 @@ class ConversationSseCacheTest {
         order.verify(store).finish(4L, ChatTurn.Status.COMPLETED);
     }
 
+    @Test void coalescesSmallProviderChunksBeforePersistingAndDelivering() {
+        prepare();
+        var events = run(1L, "batched");
+        assertEquals(List.of("ack", "delta", "done"), events.stream().map(event -> event.event()).toList());
+        assertEquals("完整回答", events.get(1).data());
+        verify(store).append(1L, "完整回答");
+    }
+
     @Test void bypassesOldCacheForOtherUsersChangedHistoryAndUpdatedKnowledge() {
         prepare();
         for (int i = 0; i < 3; i++) run(1L, "new-" + i);

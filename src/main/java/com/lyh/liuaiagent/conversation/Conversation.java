@@ -13,6 +13,7 @@ import java.util.UUID;
 public class Conversation {
     public enum AppType { LOVE, MANUS }
     @Id
+    @Column(length = 36)
     private String id = UUID.randomUUID().toString();
     @Column(nullable = false)
     private Long userId;

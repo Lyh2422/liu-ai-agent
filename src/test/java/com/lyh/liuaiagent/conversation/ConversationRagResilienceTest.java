@@ -56,7 +56,12 @@ class ConversationRagResilienceTest {
         verify(model).stream(prompt.capture());
         var texts = prompt.getValue().getInstructions().stream().map(Message::getText).toList();
         assertTrue(texts.contains("我叫小林"));
-        if (!question.equals("你好")) assertTrue(texts.stream().anyMatch(text -> text.contains(knowledgeText)));
+        if (!question.equals("你好")) {
+            assertTrue(texts.stream().anyMatch(text -> text.contains(knowledgeText)));
+        } else {
+            assertTrue(texts.stream().anyMatch(text -> text.contains("本次没有检索到能可靠支持回答的校园知识库资料")));
+            assertTrue(texts.stream().anyMatch(text -> text.contains(question)));
+        }
         verify(vectors, times(1)).similaritySearch(any(SearchRequest.class));
     }
 }

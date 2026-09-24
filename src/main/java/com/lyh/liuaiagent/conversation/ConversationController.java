@@ -30,4 +30,10 @@ public class ConversationController {
     public ConversationStore.Detail detail(@AuthenticationPrincipal UserAccount user, @PathVariable String id) {
         return store.detail(user.getId(), id);
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal UserAccount user, @PathVariable String id) {
+        store.delete(user.getId(), id);
+    }
 }
