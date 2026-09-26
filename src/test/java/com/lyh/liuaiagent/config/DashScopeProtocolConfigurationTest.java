@@ -29,8 +29,10 @@ class DashScopeProtocolConfigurationTest {
         var options = new DashScopeChatOptions();
         options.setModel(environment.getProperty("spring.ai.dashscope.chat.options.model"));
         options.setMultiModel(environment.getProperty("spring.ai.dashscope.chat.options.multi-model", Boolean.class));
+        options.setTemperature(Double.valueOf(environment.getProperty("spring.ai.dashscope.chat.options.temperature")));
         assertEquals("qwen3.7-flash", options.getModel());
         assertEquals(Boolean.TRUE, options.getMultiModel());
+        assertEquals(0.2d, options.getTemperature());
         var path = new AtomicReference<String>();
         var web = WebClient.builder().exchangeFunction(request -> {
             path.set(request.url().getPath());
@@ -43,6 +45,7 @@ class DashScopeProtocolConfigurationTest {
         assertEquals("/api/v1/services/aigc/multimodal-generation/generation", path.get());
         assertTrue(response.contains("你好"));
         var agent = new com.lyh.liuaiagent.agent.LiuManus(new org.springframework.ai.tool.ToolCallback[0], model);
+        assertEquals(0.2d, ((DashScopeChatOptions) agent.getChatOptions()).getTemperature());
         path.set(null);
         var agentResponse = org.springframework.ai.chat.client.ChatClient.create(model)
                 .prompt(new Prompt("你好", agent.getChatOptions())).stream().content()

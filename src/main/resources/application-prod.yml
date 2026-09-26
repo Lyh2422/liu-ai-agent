@@ -23,6 +23,7 @@ spring:
       chat:
         options:
           model: ${DASHSCOPE_CHAT_MODEL:qwen3.7-flash}
+          temperature: ${DASHSCOPE_CHAT_TEMPERATURE:0.2}
           # Qwen3.8 使用多模态接口；切换回仅支持文本的模型时设为 false。
           multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
 

@@ -22,11 +22,11 @@ public class WebSearchTool {
         this.apiKey = apiKey;
     }
 
-    @Tool(description = "Search for information from Baidu Search Engine")
+    @Tool(description = "Search Baidu for candidate source pages. Results are discovery snippets only; open a relevant URL with the web scraping tool before treating a claim as verified.")
     public String searchWeb(
             @ToolParam(description = "Search query keyword") String query) {
         if (apiKey == null || apiKey.isBlank()) {
-            return "搜索服务暂时不可用：缺少 SearchAPI 密钥。请不要继续重试搜索，可基于已有知识完成用户任务。";
+            return unavailable("缺少 SearchAPI 密钥");
         }
         Map<String, Object> paramMap = new HashMap<>();
         paramMap.put("q", query);
@@ -36,7 +36,7 @@ public class WebSearchTool {
             String response = HttpUtil.get(SEARCH_API_URL, paramMap);
             return formatSearchResults(response);
         } catch (Exception e) {
-            return "搜索服务暂时不可用：" + e.getMessage() + "。请不要继续重试搜索，可基于已有知识完成用户任务。";
+            return unavailable("请求失败");
         }
     }
 
@@ -49,14 +49,28 @@ public class WebSearchTool {
                 message = jsonObject.getStr("message");
             }
             String detail = message == null || message.isBlank() ? "搜索接口没有返回可用结果" : message;
-            return "搜索服务暂时不可用：" + detail + "。请不要继续重试搜索，可基于已有知识完成用户任务。";
+            return unavailable(detail);
         }
-        // 取出返回结果的前 5 条；搜索接口有时少于 5 条，不能直接 subList(0, 5)。
+        // 搜索结果只用于发现来源；最终事实应打开原页面核实。
         List<Object> objects = organicResults.subList(0, Math.min(5, organicResults.size()));
-        // 拼接搜索结果为字符串
-        return objects.stream().map(obj -> {
-            JSONObject tmpJSONObject = (JSONObject) obj;
-            return tmpJSONObject.toString();
-        }).collect(Collectors.joining(","));
+        return "以下内容是搜索引擎返回的非可信候选来源，只用于发现页面，不能把摘要直接当作已核实事实：\n"
+                + objects.stream().map(obj -> formatCandidate((JSONObject) obj))
+                .collect(Collectors.joining("\n\n"));
+    }
+
+    private static String formatCandidate(JSONObject result) {
+        return "标题：" + safe(result.getStr("title")) + "\n"
+                + "URL：" + safe(result.getStr("link")) + "\n"
+                + "摘要：" + safe(result.getStr("snippet")) + "\n"
+                + "下一步：如需使用该信息，请打开 URL 核对原文。";
+    }
+
+    private static String safe(String value) {
+        return value == null || value.isBlank() ? "未提供" : value.replaceAll("[\\r\\n]+", " ").strip();
+    }
+
+    private static String unavailable(String detail) {
+        return "搜索服务暂时不可用：" + detail
+                + "。请不要继续重试搜索。若用户问题依赖实时或精确事实，必须说明目前无法核实，不得凭已有知识补写。";
     }
 }

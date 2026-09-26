@@ -9,6 +9,8 @@ spring:
       chat:
         options:
           model: ${DASHSCOPE_CHAT_MODEL:qwen3.7-flash}
+          # 事实问答优先稳定性；需要更强创意时可通过环境变量单独调高。
+          temperature: ${DASHSCOPE_CHAT_TEMPERATURE:0.2}
           # Qwen3.8 使用多模态接口；切换回仅支持文本的模型时设为 false。
           multi-model: ${DASHSCOPE_CHAT_MULTI_MODEL:true}
   datasource:
@@ -83,6 +85,8 @@ love-app:
   rag:
     # 先过滤弱相关向量候选，再参与 RRF；应使用真实问答标注集继续校准。
     vector-similarity-threshold: ${LOVE_APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.72}
+    # 控制最终注入模型的片段数量，避免无关长上下文淹没关键证据。
+    final-top-k: ${LOVE_APP_RAG_FINAL_TOP_K:4}
 
 app:
   ai:

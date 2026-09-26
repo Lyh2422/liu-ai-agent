@@ -165,10 +165,12 @@ class ConversationPersistenceTest {
             assertTrue(persisted.getSummarizedThroughTurnId() > 0);
             assertFalse(persisted.getSummary().isBlank());
             assertTrue(persisted.getSummary().length() <= 6_000);
+            assertTrue(persisted.getSummary().contains("用户曾说"));
+            assertFalse(persisted.getSummary().contains("回答0"), "助手旧回答不应进入长期摘要并被后续模型当作事实");
 
             String current = "请继续";
             var next = store.begin(1L, id, Conversation.AppType.LOVE, current);
-            assertTrue(next.history().getFirst().getText().contains("较早对话的滚动摘要"));
+            assertTrue(next.history().getFirst().getText().contains("较早对话中用户曾表达的内容"));
             assertTrue(next.history().stream().anyMatch(message -> message.getText().startsWith("问题7")));
             var tokens = context.getBean(ContextTokenEstimator.class);
             assertTrue(next.history().stream().mapToInt(tokens::estimate).sum()

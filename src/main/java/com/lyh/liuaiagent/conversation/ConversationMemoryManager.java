@@ -142,8 +142,9 @@ public class ConversationMemoryManager {
         for (int index = 0; index < unsummarized.size() - 1 && remainingTokens > rawRecentTokenTarget; index++) {
             ChatTurn turn = unsummarized.get(index);
             if (!summary.isEmpty()) summary.append('\n');
-            summary.append("- 用户：").append(fragment(turn.getUserContent(), 160))
-                    .append("；助手：").append(fragment(turn.getAssistantContent(), 240));
+            // 长期摘要只保留用户实际说过的内容，避免把助手过去可能不准确的回答
+            // 重新注入后续系统上下文并逐轮放大。
+            summary.append("- 用户曾说：").append(fragment(turn.getUserContent(), 240));
             through = turn.getId();
             remainingTokens -= tokens.estimateTurn(turn);
         }
@@ -185,9 +186,19 @@ public class ConversationMemoryManager {
             }
         }
         if (memory != null && !memory.getSummary().isBlank()) {
-            value.append("较早对话的滚动摘要：\n").append(sanitizeData(memory.getSummary()));
+            value.append("较早对话中用户曾表达的内容：\n").append(sanitizeData(userOnlySummary(memory.getSummary())));
         }
         return value.toString().strip();
+    }
+
+    /** 兼容升级前已经保存的“用户；助手”摘要，读取时不再把旧助手回答送回模型。 */
+    private static String userOnlySummary(String summary) {
+        return summary.lines()
+                .map(line -> {
+                    int assistant = line.indexOf("；助手：");
+                    return assistant < 0 ? line : line.substring(0, assistant);
+                })
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     private String fragment(String text, int maxChars) {
