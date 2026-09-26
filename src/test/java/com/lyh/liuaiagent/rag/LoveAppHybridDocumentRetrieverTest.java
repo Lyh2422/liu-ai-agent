@@ -2,6 +2,7 @@ package com.lyh.liuaiagent.rag;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -138,10 +139,53 @@ class LoveAppHybridDocumentRetrieverTest {
         when(corpus.bm25Search("星河", 5)).thenReturn(
                 java.util.stream.IntStream.range(0, 5).mapToObj(i -> new LoveAppRetrievalCorpus.ScoredDocument(doc("b" + i, "关键词"), 1)).toList());
         var retriever = new LoveAppHybridDocumentRetriever(vectors, corpus, expansion);
-        assertEquals(6, retriever.retrieve(new Query("星河")).size());
+        assertEquals(LoveAppRagProperties.DEFAULT_FINAL_TOP_K, retriever.retrieve(new Query("星河")).size());
         clearInvocations(vectors, corpus);
         assertTrue(retriever.retrieve(new Query("？！")).isEmpty());
         verifyNoInteractions(vectors, corpus);
+    }
+
+    @Test
+    void contextualizesOnlyShortFollowUpQueriesWithThePreviousUserMessage() {
+        var expansion = new LoveAppKeywordExpansionService();
+        var corpus = mock(LoveAppRetrievalCorpus.class);
+        var vectors = mock(VectorStore.class);
+        when(vectors.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+        var retriever = new LoveAppHybridDocumentRetriever(vectors, corpus, expansion);
+
+        retriever.retrieve(new Query("那我还要继续吗？", List.of(
+                new UserMessage("我们最近总是吵架和冷战")), Map.of()));
+
+        var request = org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectors, atLeastOnce()).similaritySearch(request.capture());
+        assertTrue(request.getAllValues().getFirst().getQuery().contains("我们最近总是吵架和冷战"));
+        assertTrue(request.getAllValues().getFirst().getQuery().contains("那我还要继续吗"));
+    }
+
+    @Test
+    void doesNotPolluteASelfContainedShortQuestionWithHistory() {
+        var expansion = new LoveAppKeywordExpansionService();
+        var corpus = mock(LoveAppRetrievalCorpus.class);
+        var vectors = mock(VectorStore.class);
+        when(vectors.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+        var retriever = new LoveAppHybridDocumentRetriever(vectors, corpus, expansion);
+
+        retriever.retrieve(new Query("他总让我买单", List.of(new UserMessage("之前聊的是异地恋")), Map.of()));
+
+        var request = org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectors, atLeastOnce()).similaritySearch(request.capture());
+        assertEquals("他总让我买单", request.getAllValues().getFirst().getQuery());
+        assertTrue(request.getAllValues().stream()
+                .noneMatch(value -> value.getQuery().contains("之前聊的是异地恋")));
+    }
+
+    @Test
+    void rejectsInvalidFinalContextSize() {
+        var properties = new LoveAppRagProperties();
+        properties.setFinalTopK(0);
+        assertThrows(IllegalArgumentException.class, () -> new LoveAppHybridDocumentRetriever(
+                mock(VectorStore.class), mock(LoveAppRetrievalCorpus.class),
+                new LoveAppKeywordExpansionService(), properties));
     }
 
     @Test

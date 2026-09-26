@@ -1,6 +1,7 @@
 package com.lyh.liuaiagent.rag;
 
 import org.springframework.ai.document.Document;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -22,8 +23,8 @@ public class LoveAppHybridDocumentRetriever implements DocumentRetriever {
 
     private static final int VECTOR_TOP_K = 5;
     private static final int BM25_TOP_K = 5;
-    private static final int FINAL_TOP_K = 6;
     private static final int RRF_CONSTANT = 60;
+    private static final int CONTEXTUAL_QUERY_MAX_CHARS = 18;
 
     private final VectorStore vectorStore;
     private final LoveAppRetrievalCorpus corpus;
@@ -55,7 +56,7 @@ public class LoveAppHybridDocumentRetriever implements DocumentRetriever {
             if (snapshot.corpus().documents().isEmpty()) return List.of();
             return new LoveAppHybridDocumentRetriever(snapshot.vectors(), snapshot.corpus(), keywordExpansionService, properties).retrieve(query);
         }
-        String userQuery = keywordExpansionService.normalize(query.text());
+        String userQuery = contextualize(query);
         List<String> variants = keywordExpansionService.expand(userQuery);
 
         Map<String, RankedDocument> mergedDocuments = new LinkedHashMap<>();
@@ -77,9 +78,32 @@ public class LoveAppHybridDocumentRetriever implements DocumentRetriever {
 
         return mergedDocuments.values().stream()
                 .sorted(Comparator.comparingDouble(RankedDocument::score).reversed())
-                .limit(FINAL_TOP_K)
+                .limit(properties.getFinalTopK())
                 .map(this::toDocument)
                 .toList();
+    }
+
+    /**
+     * 仅在“他呢”“那我怎么办”这类短指代问题中补入上一条用户消息，避免把完整问题
+     * 无条件与历史拼接而引入噪声。补全只用于检索，最终回答仍使用原始问题。
+     */
+    private String contextualize(Query query) {
+        String current = keywordExpansionService.normalize(query.text());
+        if (current.length() > CONTEXTUAL_QUERY_MAX_CHARS || !looksContextDependent(current)) return current;
+        for (int index = query.history().size() - 1; index >= 0; index--) {
+            var message = query.history().get(index);
+            if (message.getMessageType() != MessageType.USER) continue;
+            String previous = keywordExpansionService.normalize(message.getText());
+            if (!previous.isBlank()) return previous + " " + current;
+        }
+        return current;
+    }
+
+    private static boolean looksContextDependent(String query) {
+        return query.matches("(?:他|她|对方)?呢")
+                || query.matches("(?:那|然后|接下来|之后).*?")
+                || query.matches(".*(?:这件事|那个|之前的).*?")
+                || query.matches("(?:我|我们)?该?怎么办[呢吗]?");
     }
 
     private List<Document> vectorSearch(String query) {
@@ -148,6 +172,9 @@ public class LoveAppHybridDocumentRetriever implements DocumentRetriever {
         double threshold = properties.getVectorSimilarityThreshold();
         if (threshold < 0.0d || threshold > 1.0d) {
             throw new IllegalArgumentException("love-app.rag.vector-similarity-threshold 必须在 0 到 1 之间");
+        }
+        if (properties.getFinalTopK() < 1 || properties.getFinalTopK() > 10) {
+            throw new IllegalArgumentException("love-app.rag.final-top-k 必须在 1 到 10 之间");
         }
     }
 
