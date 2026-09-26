@@ -18,6 +18,7 @@ import java.util.Optional;
 @Component
 public class HotQuestionCacheService {
     private static final int HOT_THRESHOLD = 3;
+    private static final int REQUIRED_IDENTICAL_COMPLETIONS = 2;
     private static final Duration CACHE_TTL = Duration.ofMinutes(30);
     private static final Duration HOT_WINDOW = Duration.ofHours(1);
     public static final int MAX_ANSWER_CHARS = 20_000;
@@ -38,7 +39,8 @@ public class HotQuestionCacheService {
     public Key keyFor(Long userId, String appType, String knowledgeVersion, List<Message> history, String question) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            addField(digest, "love-answer-v1");
+            // 提示词与证据规则变化时升级版本，避免复用旧策略生成的回答。
+            addField(digest, "love-answer-grounded-v2");
             addField(digest, userId.toString());
             addField(digest, appType);
             addField(digest, knowledgeVersion);
@@ -83,9 +85,15 @@ public class HotQuestionCacheService {
     public synchronized boolean cacheAnswerIfHot(Key key, String answer) {
         purgeExpired();
         Entry entry = entries.get(key);
-        if (entry == null || entry.count < HOT_THRESHOLD
-                || clock.millis() - entry.windowStartedAt >= HOT_WINDOW.toMillis()
+        if (entry == null || clock.millis() - entry.windowStartedAt >= HOT_WINDOW.toMillis()
                 || answer == null || answer.isBlank() || answer.length() > MAX_ANSWER_CHARS) return false;
+        if (answer.equals(entry.candidateAnswer)) {
+            entry.identicalCompletions++;
+        } else {
+            entry.candidateAnswer = answer;
+            entry.identicalCompletions = 1;
+        }
+        if (entry.count < HOT_THRESHOLD || entry.identicalCompletions < REQUIRED_IDENTICAL_COMPLETIONS) return false;
         entry.answer = answer;
         entry.answerExpiresAt = clock.millis() + CACHE_TTL.toMillis();
         return true;
@@ -104,6 +112,8 @@ public class HotQuestionCacheService {
         private long windowStartedAt;
         private String answer;
         private long answerExpiresAt;
+        private String candidateAnswer;
+        private int identicalCompletions;
         private Entry(long now) { windowStartedAt = now; }
     }
 }

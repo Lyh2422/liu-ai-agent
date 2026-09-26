@@ -12,17 +12,34 @@ class HotQuestionCacheServiceTest {
     private final HotQuestionCacheService cache = new HotQuestionCacheService(clock, 2);
     private HotQuestionCacheService.Key key(String question) { return cache.keyFor(1L, "LOVE", "v1", List.of(), question); }
     private void warm(HotQuestionCacheService.Key key) { for (int i = 0; i < 3; i++) cache.recordQuestion(key); }
+    private void storeCached(HotQuestionCacheService.Key key, String answer) {
+        warm(key);
+        assertFalse(cache.cacheAnswerIfHot(key, answer));
+        assertTrue(cache.cacheAnswerIfHot(key, answer));
+    }
 
     @Test void storesOnlyHotCompleteNonemptyAnswers() {
         var key = key("怎么沟通？");
         assertEquals(1, cache.recordQuestion(key));
+        assertFalse(cache.cacheAnswerIfHot(key, "完整回答"));
         assertEquals(2, cache.recordQuestion(key));
-        assertFalse(cache.cacheAnswerIfHot(key, "回答"));
+        assertFalse(cache.cacheAnswerIfHot(key, "完整回答"));
         assertEquals(3, cache.recordQuestion(key));
         assertFalse(cache.cacheAnswerIfHot(key, " "));
         assertFalse(cache.cacheAnswerIfHot(key, "a".repeat(20_001)));
         assertTrue(cache.cacheAnswerIfHot(key, "完整回答"));
         assertEquals("完整回答", cache.getCachedAnswer(key).orElseThrow());
+    }
+
+    @Test void doesNotCacheChangingAnswersMerelyBecauseTheQuestionIsHot() {
+        var key = key("怎么沟通？");
+        assertEquals(1, cache.recordQuestion(key));
+        assertFalse(cache.cacheAnswerIfHot(key, "第一种说法"));
+        assertEquals(2, cache.recordQuestion(key));
+        assertFalse(cache.cacheAnswerIfHot(key, "第二种说法"));
+        assertEquals(3, cache.recordQuestion(key));
+        assertFalse(cache.cacheAnswerIfHot(key, "第三种说法"));
+        assertTrue(cache.getCachedAnswer(key).isEmpty());
     }
 
     @Test void isolatesUsersAppsHistoryRolesAndKnowledgeVersions() {
@@ -44,7 +61,7 @@ class HotQuestionCacheServiceTest {
     }
 
     @Test void expiresAfterThirtyMinutesWithoutExtendingOnRead() {
-        var key = key("问题"); warm(key); cache.cacheAnswerIfHot(key, "回答");
+        var key = key("问题"); storeCached(key, "回答");
         clock.advance(Duration.ofMinutes(29));
         assertTrue(cache.getCachedAnswer(key).isPresent());
         clock.advance(Duration.ofMinutes(1));
@@ -60,8 +77,8 @@ class HotQuestionCacheServiceTest {
 
     @Test void evictsLeastRecentlyUsedEntriesIncludingPopularityStats() {
         var first = key("第一问"); var second = key("第二问"); var third = key("第三问");
-        warm(first); cache.cacheAnswerIfHot(first, "第一答");
-        warm(second); cache.cacheAnswerIfHot(second, "第二答");
+        storeCached(first, "第一答");
+        storeCached(second, "第二答");
         cache.getCachedAnswer(first);
         cache.recordQuestion(third);
         assertTrue(cache.getCachedAnswer(first).isPresent());
