@@ -84,6 +84,21 @@ class LoveAppHybridDocumentRetrieverTest {
     }
 
     @Test
+    void fallsBackToBm25WhenPgVectorConnectionIsUnavailable() {
+        var expansion = new LoveAppKeywordExpansionService();
+        var corpus = new LoveAppRetrievalCorpusForTest(List.of(doc("space", "个人空间和联系频率")), expansion);
+        var vectors = mock(VectorStore.class);
+        when(vectors.similaritySearch(any(SearchRequest.class)))
+                .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("pgvector unavailable"));
+
+        var results = new LoveAppHybridDocumentRetriever(vectors, corpus, expansion).retrieve(new Query("个人空间"));
+
+        assertEquals("space", results.getFirst().getId());
+        assertEquals("bm25", results.getFirst().getMetadata().get("hybrid_sources"));
+        verify(vectors, times(1)).similaritySearch(any(SearchRequest.class));
+    }
+
+    @Test
     void doesNotHideLocalProgrammingErrorsAsRemoteServiceFailures() {
         var expansion = new LoveAppKeywordExpansionService();
         var corpus = new LoveAppRetrievalCorpusForTest(List.of(doc("space", "个人空间")), expansion);

@@ -24,6 +24,7 @@ public final class KnowledgeDocuments {
                             .getBytes(StandardCharsets.UTF_8)).toString();
                     chunks.add(Document.builder().id(id).text(document.getTitle() + "\n" + chunk)
                             .metadata("documentId", document.getId()).metadata("filename", document.getFilename())
+                            .metadata("chunkId", id)
                             .metadata("title", document.getTitle()).metadata("chunkStart", start)
                             .metadata("chunkEnd", end).build());
                 }

@@ -25,9 +25,14 @@ public class KnowledgeManagementService {
         var documents = new ArrayList<>(store.all());
         documents.add(document);
         var prepared = prepare(documents);
-        var saved = store.create(document);
-        index.publish(prepared);
-        return saved;
+        try {
+            var saved = store.create(document);
+            index.publish(prepared);
+            return saved;
+        } catch (RuntimeException error) {
+            index.discard(prepared);
+            throw error;
+        }
     }
 
     public synchronized KnowledgeDocument update(String id, long version, String title, String content, Long userId) {
@@ -41,9 +46,14 @@ public class KnowledgeManagementService {
         documents.removeIf(item -> item.getId().equals(id));
         documents.add(document);
         var prepared = prepare(documents);
-        var saved = store.update(id, version, title, content, userId);
-        index.publish(prepared);
-        return saved;
+        try {
+            var saved = store.update(id, version, title, content, userId);
+            index.publish(prepared);
+            return saved;
+        } catch (RuntimeException error) {
+            index.discard(prepared);
+            throw error;
+        }
     }
 
     public synchronized void delete(String id, long version) {
@@ -52,8 +62,13 @@ public class KnowledgeManagementService {
         var documents = new ArrayList<>(store.all());
         documents.removeIf(item -> item.getId().equals(id));
         var prepared = prepare(documents);
-        store.delete(id, version);
-        index.publish(prepared);
+        try {
+            store.delete(id, version);
+            index.publish(prepared);
+        } catch (RuntimeException error) {
+            index.discard(prepared);
+            throw error;
+        }
     }
 
     private KnowledgeIndex.Snapshot prepare(java.util.List<KnowledgeDocument> documents) {

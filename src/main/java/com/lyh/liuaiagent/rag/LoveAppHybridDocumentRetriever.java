@@ -7,6 +7,8 @@ import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 
@@ -66,8 +68,8 @@ public class LoveAppHybridDocumentRetriever implements DocumentRetriever {
             if (vectorAvailable) {
                 try {
                     accumulateVector(mergedDocuments, vectorSearch(variant));
-                } catch (RestClientException error) {
-                    // 查询 embedding 依赖外部 HTTP 服务；失败时本地 BM25 仍可检索。
+                } catch (RestClientException | DataAccessResourceFailureException | TransientDataAccessException error) {
+                    // 查询 embedding 或 PGVector 依赖外部服务；失败时本地 BM25 仍可检索。
                     // 本次请求不再为其他扩展版本重复调用故障接口，下次请求会重新尝试。
                     vectorAvailable = false;
                     log.warn("向量检索服务不可用，本次请求继续使用 BM25；异常类型={}", error.getClass().getSimpleName());
@@ -161,6 +163,8 @@ public class LoveAppHybridDocumentRetriever implements DocumentRetriever {
     }
 
     private String resolveDocumentKey(Document document) {
+        Object chunkId = document.getMetadata().get("chunkId");
+        if (chunkId != null && !chunkId.toString().isBlank()) return chunkId.toString();
         if (document.getId() != null && !document.getId().isBlank()) {
             return document.getId();
         }
