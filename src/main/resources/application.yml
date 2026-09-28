@@ -6,6 +6,9 @@ spring:
   ai:
     dashscope:
       api-key: ${DASHSCOPE_API_KEY:}
+      embedding:
+        options:
+          model: ${DASHSCOPE_EMBEDDING_MODEL:qwen3.7-text-embedding-flash}
       chat:
         options:
           model: ${DASHSCOPE_CHAT_MODEL:qwen3.7-flash}
@@ -87,6 +90,18 @@ love-app:
     vector-similarity-threshold: ${LOVE_APP_RAG_VECTOR_SIMILARITY_THRESHOLD:0.72}
     # 控制最终注入模型的片段数量，避免无关长上下文淹没关键证据。
     final-top-k: ${LOVE_APP_RAG_FINAL_TOP_K:4}
+    pgvector:
+      # 本地未启动 PGVector、测试或轻量演示可关闭并回退到 SimpleVectorStore。
+      enabled: ${VECTOR_DATABASE_ENABLED:false}
+      url: ${VECTOR_DATABASE_URL:jdbc:postgresql://localhost:5432/liu_ai_vectors}
+      username: ${VECTOR_DATABASE_USERNAME:liu_ai_agent}
+      password: ${VECTOR_DATABASE_PASSWORD:liu_ai_agent_vector_dev}
+      schema: ${VECTOR_DATABASE_SCHEMA:public}
+      # 更换 embedding 模型时使用新表，避免与旧模型的向量维度或向量空间混用。
+      table: ${VECTOR_DATABASE_TABLE:love_knowledge_vectors_qwen37_flash}
+      # 0 表示从 EmbeddingModel 获取维度；切换 embedding 模型后应使用新表或重建表。
+      dimensions: ${VECTOR_DATABASE_DIMENSIONS:0}
+      maximum-pool-size: ${VECTOR_DATABASE_MAX_POOL_SIZE:5}
 
 app:
   ai:

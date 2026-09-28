@@ -19,6 +19,22 @@ services:
       retries: 20
     restart: unless-stopped
 
+  vector-database:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: liu_ai_vectors
+      POSTGRES_USER: ${VECTOR_DATABASE_USERNAME:-liu_ai_agent}
+      POSTGRES_PASSWORD: ${VECTOR_DATABASE_PASSWORD:?VECTOR_DATABASE_PASSWORD is required}
+      TZ: UTC
+    volumes:
+      - liu_ai_agent_pgvector:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -28,8 +44,12 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       CHAT_DATABASE_URL: jdbc:mysql://database:3306/liu_ai_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      VECTOR_DATABASE_ENABLED: "true"
+      VECTOR_DATABASE_URL: jdbc:postgresql://vector-database:5432/liu_ai_vectors
     depends_on:
       database:
+        condition: service_healthy
+      vector-database:
         condition: service_healthy
     volumes:
       - liu_ai_agent_files:/app/tmp
@@ -49,4 +69,5 @@ services:
 
 volumes:
   liu_ai_agent_mysql:
+  liu_ai_agent_pgvector:
   liu_ai_agent_files:

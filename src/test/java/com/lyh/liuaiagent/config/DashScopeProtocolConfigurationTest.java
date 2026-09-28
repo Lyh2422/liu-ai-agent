@@ -3,12 +3,14 @@ package com.lyh.liuaiagent.config;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestClient;
@@ -19,6 +21,20 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DashScopeProtocolConfigurationTest {
+    @Test
+    void embeddingModelAndVectorTableAreExplicitlyVersionedTogether() throws Exception {
+        var environment = new StandardEnvironment();
+        for (var source : new YamlPropertySourceLoader().load("embedding",
+                new FileSystemResource("src/main/resources/application.yml"))) {
+            environment.getPropertySources().addFirst(source);
+        }
+
+        assertEquals("qwen3.7-text-embedding-flash",
+                environment.getProperty("spring.ai.dashscope.embedding.options.model"));
+        assertEquals("love_knowledge_vectors_qwen37_flash",
+                environment.getProperty("love-app.rag.pgvector.table"));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"application.yml", "application-prod.yml"})
     void configuredQwenUsesMultimodalRouteAndDecodesText(String resource) throws Exception {

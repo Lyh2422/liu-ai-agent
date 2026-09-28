@@ -2,6 +2,9 @@ spring:
   ai:
     dashscope:
       api-key: ${DASHSCOPE_API_KEY:}
+      embedding:
+        options:
+          model: qwen3.7-text-embedding-flash
       chat:
         options:
           model: qwen3.7-flash
