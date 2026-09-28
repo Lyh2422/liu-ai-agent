@@ -3,7 +3,7 @@
 一个面向校园场景的全栈 AI 应用：既能陪你梳理关系与情绪，也能处理校园事务，还支持同学之间的私聊与群聊。
 
 `Vue 3` · `Spring Boot 3` · `Spring AI Alibaba` · `RAG` ·
-`ReAct Agent` · `MySQL` · `Docker`
+`ReAct Agent` · `MySQL` · `PGVector` · `Docker`
 
 ![留心项目首页](docs/screenshots/home.png)
 
@@ -38,7 +38,7 @@
 
 ### RAG 与长期记忆
 
-- 情感知识库采用向量召回与 BM25 关键词召回，通过 RRF 融合排序。
+- 情感知识库使用 PGVector 持久化向量，采用向量召回与 BM25 关键词召回，通过 RRF 融合排序。
 - 查询增强会结合对话上下文补全用户意图，并过滤弱相关候选。
 - 向量服务异常时自动降级为本地关键词检索，避免整个问答链路中断。
 - 会话、消息、滚动摘要和显式用户事实持久化保存，并按 token 预算组装上下文。
@@ -68,6 +68,7 @@ flowchart LR
     A --> DB[(MySQL 8 / H2)]
     C --> DB
     R --> DB
+    R --> P[(PostgreSQL / PGVector)]
     R --> Q[DashScope / Qwen]
     G --> Q
     G --> T[内置工具与 MCP 服务]
@@ -78,7 +79,7 @@ flowchart LR
 | 前端 | Vue 3、TypeScript、Vite、Vue Router、Axios、markdown-it |
 | 后端 | Java 21、Spring Boot 3.4.8、Spring Security、Spring Data JPA |
 | AI | Spring AI Alibaba、DashScope SDK、LangChain4j、ReAct、MCP |
-| 数据 | MySQL 8、Flyway；H2 用于演示环境、测试与存量迁移 |
+| 数据 | MySQL 8、Flyway、PostgreSQL / PGVector；H2 用于演示环境与测试 |
 | 部署 | Docker、Docker Compose、Nginx |
 
 ## 快速开始
@@ -139,7 +140,7 @@ docker compose -f compose.demo.yml down
 
 ### 方式二：本地开发
 
-准备 Java 21、Node.js 20+、MySQL 8。仓库已包含 Maven Wrapper，
+准备 Java 21、Node.js 20+、Docker。仓库已包含 Maven Wrapper，
 无需单独安装 Maven。先启动数据库：
 
 ```bash
@@ -155,6 +156,8 @@ source .env.mysql
 set +a
 
 export CHAT_DATABASE_URL="jdbc:mysql://127.0.0.1:${MYSQL_PORT:-3306}/liu_ai_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
+export VECTOR_DATABASE_ENABLED=true
+export VECTOR_DATABASE_URL="jdbc:postgresql://localhost:${VECTOR_DATABASE_PORT:-5432}/liu_ai_vectors"
 export DASHSCOPE_API_KEY='你的-DashScope-Key'
 export AUTH_JWT_SECRET="$(openssl rand -hex 32)"
 export AUTH_BOOTSTRAP_ADMIN_PASSWORD='请设置强密码'
@@ -185,6 +188,7 @@ npm run dev
 | --- | --- | --- |
 | `DASHSCOPE_API_KEY` | 是 | DashScope 模型访问密钥 |
 | `DASHSCOPE_CHAT_MODEL` | 否 | 聊天模型，默认 `qwen3.7-flash` |
+| `DASHSCOPE_EMBEDDING_MODEL` | 否 | 向量模型，默认 `qwen3.7-text-embedding-flash` |
 | `DASHSCOPE_CHAT_MULTI_MODEL` | 否 | 是否使用多模态协议，默认 `true` |
 | `SEARCH_API_KEY` | 否 | 联网搜索服务密钥；留空时搜索工具不可用 |
 | `AUTH_JWT_SECRET` | 是 | JWT 签名密钥，建议使用 `openssl rand -hex 32` 生成 |
@@ -195,6 +199,10 @@ npm run dev
 | `CHAT_DATABASE_USERNAME` | 生产建议配置 | 数据库用户名，Compose 默认 `liu_ai_agent` |
 | `CHAT_DATABASE_PASSWORD` | 生产 Compose 必填 | 应用数据库密码 |
 | `MYSQL_ROOT_PASSWORD` | 生产 Compose 必填 | MySQL root 密码，应与应用密码不同 |
+| `VECTOR_DATABASE_ENABLED` | 否 | 是否启用 PGVector；生产 Compose 默认开启 |
+| `VECTOR_DATABASE_URL` | 启用时必填 | 独立 PGVector JDBC 地址 |
+| `VECTOR_DATABASE_USERNAME` | 启用时必填 | PGVector 用户名 |
+| `VECTOR_DATABASE_PASSWORD` | 启用时必填 | PGVector 密码 |
 | `AI_REQUESTS_PER_MINUTE` | 否 | 每位登录用户每分钟的 AI 请求上限 |
 | `AI_SENSITIVE_LOGGING_ENABLED` | 否 | 是否记录敏感 AI 内容，默认 `false` |
 | `CHAT_RETENTION_DAYS` | 否 | 会话自动保留天数 |
@@ -258,6 +266,7 @@ docker compose --env-file .env.prod -f compose.prod.yml up -d --build
 - [H2 迁移到 MySQL](docs/mysql-migration.md)
 - [会话历史与长期记忆](docs/conversation-history.md)
 - [混合检索设计](docs/hybrid-retrieval.md)
+- [PGVector 向量索引](docs/pgvector.md)
 - [知识库管理](docs/knowledge-management.md)
 - [SSE 响应缓存](docs/sse-response-cache.md)
 
