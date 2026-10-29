@@ -114,6 +114,9 @@ app:
     retention-cleanup-cron: ${CHAT_RETENTION_CLEANUP_CRON:0 15 3 * * *}
     memory:
       model-input-token-budget: ${CHAT_MEMORY_MODEL_INPUT_TOKEN_BUDGET:12000}
+      # 最终校验位于 RAG 增强之后，额外保留估算误差空间。
+      final-token-safety-margin: ${CHAT_MEMORY_FINAL_TOKEN_SAFETY_MARGIN:256}
+      rag-context-token-budget: ${CHAT_MEMORY_RAG_CONTEXT_TOKEN_BUDGET:2500}
       reserved-token-budget: ${CHAT_MEMORY_RESERVED_TOKEN_BUDGET:4000}
       memory-token-budget: ${CHAT_MEMORY_TOKEN_BUDGET:2000}
       raw-recent-token-target: ${CHAT_MEMORY_RAW_RECENT_TOKEN_TARGET:5000}

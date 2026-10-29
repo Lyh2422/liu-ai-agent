@@ -2,6 +2,7 @@ package com.lyh.liuaiagent.app;
 
 
 import com.lyh.liuaiagent.advisor.MyLoggerAdvisor;
+import com.lyh.liuaiagent.conversation.FinalPromptBudgetAdvisor;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -61,12 +62,19 @@ public class LoveApp {
         this(dashscopeChatModel, false);
     }
 
+    public LoveApp(ChatModel dashscopeChatModel, boolean sensitiveLoggingEnabled) {
+        this(dashscopeChatModel, sensitiveLoggingEnabled, 12000, 256);
+    }
+
     @Autowired
     public LoveApp(ChatModel dashscopeChatModel,
-                   @Value("${app.ai.sensitive-logging-enabled:false}") boolean sensitiveLoggingEnabled) {
+                   @Value("${app.ai.sensitive-logging-enabled:false}") boolean sensitiveLoggingEnabled,
+                   @Value("${app.conversation.memory.model-input-token-budget:12000}") int inputBudget,
+                   @Value("${app.conversation.memory.final-token-safety-margin:256}") int safetyMargin) {
         this.sensitiveLoggingEnabled = sensitiveLoggingEnabled;
         // 会话服务统一保存消息，此客户端接收显式历史，避免 Advisor 重复记忆或跨用户缓存。
-        historyChatClient = ChatClient.builder(dashscopeChatModel).defaultSystem(SYSTEM_PROMPT).build();
+        historyChatClient = ChatClient.builder(dashscopeChatModel).defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(new FinalPromptBudgetAdvisor(inputBudget, safetyMargin)).build();
         // 旧演示方法仅保留进程内记忆；正式会话的唯一持久化来源是 ConversationStore 数据库。
         ChatMemory chatMemory = new InMemoryChatMemory();
 
@@ -216,7 +224,8 @@ public class LoveApp {
     }
 
     public Flux<String> chatWithHistory(String message, List<org.springframework.ai.chat.messages.Message> history) {
-        var prompt = historyChatClient.prompt().messages(history).user(message);
+        var prompt = historyChatClient.prompt().messages(history).user(message)
+                .advisors(spec -> spec.param(FinalPromptBudgetAdvisor.CURRENT_MESSAGE, message));
         if (loveAppRagCloudAdvisor != null) prompt.advisors(loveAppRagCloudAdvisor);
         return prompt.stream().content();
     }

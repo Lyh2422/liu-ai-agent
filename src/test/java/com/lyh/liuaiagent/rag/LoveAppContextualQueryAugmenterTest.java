@@ -15,6 +15,19 @@ class LoveAppContextualQueryAugmenterTest {
 
     private final LoveAppContextualQueryAugmenter augmenter = new LoveAppContextualQueryAugmenter();
 
+    @Test void boundsRetrievedSourcesAndFallsBackWhenNoSourceFits() {
+        var document = Document.builder().id("huge").text("资料".repeat(10000)).build();
+        String prompt = new LoveAppContextualQueryAugmenter(150)
+                .augment(new Query("不要截掉我的问题"), List.of(document)).text();
+        String sources = prompt.substring(prompt.indexOf("<sources>\n") + "<sources>\n".length(), prompt.indexOf("\n</sources>"));
+        assertTrue(new com.lyh.liuaiagent.conversation.ContextTokenEstimator().estimate(sources) <= 150);
+        assertTrue(prompt.contains("不要截掉我的问题"));
+        String fallback = new LoveAppContextualQueryAugmenter(0)
+                .augment(new Query("怎么办"), List.of(document)).text();
+        assertTrue(fallback.contains(LoveAppContextualQueryAugmenter.EMPTY_CONTEXT_MARKER));
+        assertFalse(fallback.contains("[S1]"));
+    }
+
     @Test
     void keepsTheOriginalQuestionAndAddsSafeFallbackRulesWhenRetrievalMisses() {
         List<Message> history = List.of(new UserMessage("我叫小林"));

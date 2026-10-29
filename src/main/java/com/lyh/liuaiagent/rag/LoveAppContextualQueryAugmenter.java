@@ -1,14 +1,14 @@
 package com.lyh.liuaiagent.rag;
 
+import com.lyh.liuaiagent.conversation.ContextTokenEstimator;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.generation.augmentation.QueryAugmenter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 /**
  * 有可靠资料时按资料回答；没有资料时保留用户问题，并切换到有边界的普通情感支持。
@@ -48,16 +48,31 @@ final class LoveAppContextualQueryAugmenter implements QueryAugmenter {
             """;
 
     private final PromptTemplate groundedPrompt = new PromptTemplate(GROUNDED_PROMPT);
+    private final ContextTokenEstimator tokens = new ContextTokenEstimator();
+    private final int contextBudget;
+
+    LoveAppContextualQueryAugmenter() { this(2500); }
+
+    LoveAppContextualQueryAugmenter(int contextBudget) {
+        if (contextBudget < 0) throw new IllegalArgumentException("RAG 上下文预算不能为负数");
+        this.contextBudget = contextBudget;
+    }
 
     @Override
     public Query augment(Query query, List<Document> documents) {
-        if (!documents.isEmpty()) {
-            AtomicInteger sourceNumber = new AtomicInteger();
-            String context = documents.stream()
-                    .map(document -> renderSource(sourceNumber.incrementAndGet(), document))
-                    .collect(Collectors.joining(System.lineSeparator() + System.lineSeparator()));
+        List<String> sources = new ArrayList<>();
+        int remaining = contextBudget;
+        for (Document document : documents) {
+            String prefix = renderSourcePrefix(sources.size() + 1, document);
+            int contentBudget = remaining - tokens.estimate(prefix) - 2;
+            if (contentBudget < 16) break;
+            String source = prefix + tokens.truncate(sanitize(document.getText()), contentBudget);
+            sources.add(source);
+            remaining -= tokens.estimate(source) + 2;
+        }
+        if (!sources.isEmpty()) {
             return query.mutate()
-                    .text(groundedPrompt.render(Map.of("context", context, "query", query.text())))
+                    .text(groundedPrompt.render(Map.of("context", String.join("\n\n", sources), "query", query.text())))
                     .build();
         }
         return query.mutate()
@@ -65,11 +80,11 @@ final class LoveAppContextualQueryAugmenter implements QueryAugmenter {
                 .build();
     }
 
-    private static String renderSource(int sourceNumber, Document document) {
+    private static String renderSourcePrefix(int sourceNumber, Document document) {
         Object title = document.getMetadata().get("title");
         Object filename = document.getMetadata().get("filename");
         String label = title != null ? title.toString() : filename != null ? filename.toString() : "未命名资料";
-        return "[S" + sourceNumber + "]\n标题：" + sanitize(label) + "\n内容：" + sanitize(document.getText());
+        return "[S" + sourceNumber + "]\n标题：" + sanitize(label) + "\n内容：";
     }
 
     private static String sanitize(String value) {
