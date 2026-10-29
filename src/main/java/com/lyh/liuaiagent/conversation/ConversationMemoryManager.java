@@ -70,12 +70,13 @@ public class ConversationMemoryManager {
 
     @Transactional(readOnly = true)
     public List<Message> buildContext(Conversation conversation, String currentMessage) {
+        validateCurrentMessage(currentMessage);
         ConversationMemory memory = memories.findById(conversation.getId()).orElse(null);
         long summarizedThrough = memory == null ? 0L : memory.getSummarizedThroughTurnId();
         int available = Math.max(0, modelInputTokenBudget - reservedTokenBudget - tokens.estimate(currentMessage));
         List<Message> context = new ArrayList<>();
 
-        String memoryText = renderMemory(conversation.getUserId(), memory);
+        String memoryText = renderMemory(conversation, memory, currentMessage);
         if (!memoryText.isBlank() && available > 0) {
             String emptyEnvelope = MEMORY_HEADER + "<memory-data>\n\n</memory-data>";
             int envelopeCost = tokens.estimate(new SystemMessage(emptyEnvelope));
@@ -137,19 +138,16 @@ public class ConversationMemoryManager {
         int remainingTokens = unsummarized.stream().mapToInt(tokens::estimateTurn).sum();
         if (remainingTokens <= rawRecentTokenTarget) return;
 
-        StringBuilder summary = new StringBuilder(memory.getSummary());
+        List<ChatTurn> olderTurns = new ArrayList<>();
         Long through = memory.getSummarizedThroughTurnId();
         for (int index = 0; index < unsummarized.size() - 1 && remainingTokens > rawRecentTokenTarget; index++) {
             ChatTurn turn = unsummarized.get(index);
-            if (!summary.isEmpty()) summary.append('\n');
-            // 长期摘要只保留用户实际说过的内容，避免把助手过去可能不准确的回答
-            // 重新注入后续系统上下文并逐轮放大。
-            summary.append("- 用户曾说：").append(fragment(turn.getUserContent(), 240));
+            olderTurns.add(turn);
             through = turn.getId();
             remainingTokens -= tokens.estimateTurn(turn);
         }
         if (Objects.equals(through, memory.getSummarizedThroughTurnId())) return;
-        memory.setSummary(keepNewestSummary(summary.toString()));
+        memory.setSummary(RelationshipSummary.update(memory.getSummary(), olderTurns, maxSummaryChars));
         memory.setSummarizedThroughTurnId(through);
         memory.setUpdatedAt(Instant.now());
         memories.save(memory);
@@ -175,46 +173,30 @@ public class ConversationMemoryManager {
         memories.deleteByConversationIds(conversationIds);
     }
 
-    private String renderMemory(Long userId, ConversationMemory memory) {
+    public void validateCurrentMessage(String message) {
+        if (tokens.estimate(new UserMessage(message)) > modelInputTokenBudget - reservedTokenBudget) {
+            throw new InvalidConversationRequestException("这条消息过长，请拆成几段发送，或先概括最重要的情况");
+        }
+    }
+
+    private String renderMemory(Conversation conversation, ConversationMemory memory, String query) {
+        int envelope = tokens.estimate(new SystemMessage(MEMORY_HEADER + "<memory-data>\n\n</memory-data>"));
+        int budget = Math.max(0, memoryTokenBudget - envelope - 80);
+        StringBuilder factsText = new StringBuilder();
+        for (UserMemoryFact fact : facts.findRecentByUserId(conversation.getUserId(), PageRequest.of(0, maxFactsInContext))) {
+            factsText.append("- ").append(fact.getFactType()).append(": ")
+                    .append(sanitizeData(fact.getFactValue())).append('\n');
+        }
+        String boundedFacts = tokens.truncate(factsText.toString(), budget / 3);
+        String recall = ConversationHistoryRecall.recall(turns, conversation,
+                memory == null ? 0L : memory.getSummarizedThroughTurnId(), query, tokens, budget / 3);
+        int summaryBudget = Math.max(0, budget - tokens.estimate(boundedFacts) - tokens.estimate(recall));
+        String summary = memory == null ? "" : RelationshipSummary.forContext(memory.getSummary(), tokens, summaryBudget);
         StringBuilder value = new StringBuilder();
-        List<UserMemoryFact> userFacts = facts.findRecentByUserId(userId, PageRequest.of(0, maxFactsInContext));
-        if (!userFacts.isEmpty()) {
-            value.append("用户明确表达的长期事实：\n");
-            for (UserMemoryFact fact : userFacts) {
-                value.append("- ").append(fact.getFactType()).append(": ")
-                        .append(sanitizeData(fact.getFactValue())).append('\n');
-            }
-        }
-        if (memory != null && !memory.getSummary().isBlank()) {
-            value.append("较早对话中用户曾表达的内容：\n").append(sanitizeData(userOnlySummary(memory.getSummary())));
-        }
+        if (!boundedFacts.isBlank()) value.append("用户明确表达的长期事实：\n").append(boundedFacts).append('\n');
+        if (!summary.isBlank()) value.append("较早对话中用户曾表达的内容（轮次越大越新，旧状态不代表当前）：\n").append(summary).append('\n');
+        if (!recall.isBlank()) value.append("与当前问题相关的历史片段（用户陈述，非已核验事实）：\n").append(recall);
         return value.toString().strip();
-    }
-
-    /** 兼容升级前已经保存的“用户；助手”摘要，读取时不再把旧助手回答送回模型。 */
-    private static String userOnlySummary(String summary) {
-        return summary.lines()
-                .map(line -> {
-                    int assistant = line.indexOf("；助手：");
-                    return assistant < 0 ? line : line.substring(0, assistant);
-                })
-                .collect(java.util.stream.Collectors.joining("\n"));
-    }
-
-    private String fragment(String text, int maxChars) {
-        String clean = sanitizeData(text).replaceAll("\\s+", " ").strip();
-        if (clean.length() <= maxChars) return clean;
-        int end = maxChars;
-        if (Character.isHighSurrogate(clean.charAt(end - 1))) end--;
-        return clean.substring(0, end) + "…";
-    }
-
-    private String keepNewestSummary(String summary) {
-        if (summary.length() <= maxSummaryChars) return summary;
-        int start = summary.length() - maxSummaryChars;
-        if (start < summary.length() && Character.isLowSurrogate(summary.charAt(start))) start++;
-        int nextLine = summary.indexOf('\n', start);
-        return nextLine >= 0 && nextLine + 1 < summary.length() ? summary.substring(nextLine + 1) : summary.substring(start);
     }
 
     private static String sanitizeData(String value) {

@@ -22,6 +22,16 @@ public interface ChatTurnRepository extends JpaRepository<ChatTurn, Long> {
             order by t.id asc
             """)
     List<ChatTurn> findCompletedAfterOrderByIdAsc(String conversationId, Long afterTurnId);
+    @Query("""
+            select t from ChatTurn t
+            where t.conversation.id = :conversationId and t.conversation.userId = :userId
+              and t.status = com.lyh.liuaiagent.conversation.ChatTurn.Status.COMPLETED
+              and t.id <= :throughTurnId
+              and locate(lower(:keyword), lower(t.userContent)) > 0
+            order by t.id desc
+            """)
+    List<ChatTurn> searchOlderUserContent(String conversationId, Long userId, Long throughTurnId,
+                                         String keyword, Pageable pageable);
     boolean existsByConversationIdAndStatus(String conversationId, ChatTurn.Status status);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from ChatTurn t where t.id = :id")

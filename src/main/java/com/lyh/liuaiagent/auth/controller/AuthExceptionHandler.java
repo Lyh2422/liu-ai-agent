@@ -2,6 +2,7 @@ package com.lyh.liuaiagent.auth.controller;
 
 import com.lyh.liuaiagent.auth.exception.ConflictException;
 import com.lyh.liuaiagent.auth.exception.NotFoundException;
+import com.lyh.liuaiagent.conversation.InvalidConversationRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class AuthExceptionHandler {
+    @ExceptionHandler(InvalidConversationRequestException.class)
+    ResponseEntity<Map<String, Object>> invalidConversation(InvalidConversationRequestException exception) {
+        return body(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     ResponseEntity<Map<String, Object>> badCredentials(BadCredentialsException exception) {
         return body(HttpStatus.UNAUTHORIZED, exception.getMessage());

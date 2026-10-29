@@ -12,7 +12,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.*;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.orm.jpa.*;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -61,8 +61,15 @@ class ConversationPersistenceTest {
 
     AnnotationConfigApplicationContext open() {
         var context = new AnnotationConfigApplicationContext();
-        context.registerBean(DataSource.class, () -> new DriverManagerDataSource(
-                "jdbc:h2:file:" + temp.resolve("history") + ";DB_CLOSE_ON_EXIT=FALSE", "sa", ""));
+        // 与应用一致地复用连接，避免文件库在每个短事务后反复关闭和重开。
+        context.registerBean(DataSource.class, () -> {
+            var dataSource = new HikariDataSource();
+            dataSource.setJdbcUrl("jdbc:h2:file:" + temp.resolve("history") + ";DB_CLOSE_ON_EXIT=FALSE");
+            dataSource.setUsername("sa");
+            dataSource.setPassword("");
+            dataSource.setMaximumPoolSize(3);
+            return dataSource;
+        });
         context.register(DatabaseConfig.class);
         context.refresh();
         return context;
@@ -175,6 +182,48 @@ class ConversationPersistenceTest {
             var tokens = context.getBean(ContextTokenEstimator.class);
             assertTrue(next.history().stream().mapToInt(tokens::estimate).sum()
                     + tokens.estimate(current) + 4_000 <= 12_000);
+        }
+    }
+
+    @Test void recallFindsOldEventOutsideTheRecentWindowAndDoesNotCrossConversations() {
+        try (var context = open()) {
+            var store = context.getBean(ConversationStore.class);
+            String id = store.create(1L, Conversation.AppType.LOVE).getId();
+            var old = store.begin(1L, id, Conversation.AppType.LOVE, "上周因为电影院失约吵架，我一个人等了两小时");
+            store.append(old.id(), "建议内容不应作为事实召回");
+            store.finish(old.id(), ChatTurn.Status.COMPLETED);
+            for (int i = 0; i < 110; i++) {
+                var turn = store.begin(1L, id, Conversation.AppType.LOVE, "其他话题" + i + "长".repeat(700));
+                store.append(turn.id(), "回答".repeat(400));
+                store.finish(turn.id(), ChatTurn.Status.COMPLETED);
+            }
+            // 模拟摘要容量淘汰了这个旧事件，原始历史仍能按当前问题召回。
+            context.getBean(ConversationMemoryRepository.class).findById(id).ifPresent(memory -> {
+                memory.setSummary("");
+                context.getBean(ConversationMemoryRepository.class).save(memory);
+            });
+            var next = store.begin(1L, id, Conversation.AppType.LOVE, "上次电影院失约后我该怎么沟通？");
+            String memory = next.history().getFirst().getText();
+            assertTrue(memory.contains("与当前问题相关的历史片段"));
+            assertTrue(memory.contains("一个人等了两小时"));
+            assertTrue(memory.contains("[turn=" + old.id() + "]"));
+            assertFalse(memory.contains("建议内容不应作为事实召回"));
+            String other = store.create(1L, Conversation.AppType.LOVE).getId();
+            assertTrue(store.begin(1L, other, Conversation.AppType.LOVE, "电影院失约").history().isEmpty());
+            assertTrue(context.getBean(ChatTurnRepository.class)
+                    .searchOlderUserContent(id, 2L, Long.MAX_VALUE, "电影院", org.springframework.data.domain.PageRequest.of(0, 5)).isEmpty());
+            assertTrue(next.history().stream().mapToInt(context.getBean(ContextTokenEstimator.class)::estimate).sum() < 8000);
+        }
+    }
+
+    @Test void oversizedInputIsRejectedBeforeItCreatesATurnOrFact() {
+        try (var context = open()) {
+            var store = context.getBean(ConversationStore.class);
+            String id = store.create(1L, Conversation.AppType.LOVE).getId();
+            assertThrows(InvalidConversationRequestException.class,
+                    () -> store.begin(1L, id, Conversation.AppType.LOVE, "我叫小明。" + "长".repeat(9000)));
+            assertTrue(store.detail(1L, id).messages().isEmpty());
+            assertEquals(0, context.getBean(UserMemoryFactRepository.class).count());
         }
     }
 
