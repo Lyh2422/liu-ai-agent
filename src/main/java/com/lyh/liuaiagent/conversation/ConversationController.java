@@ -27,8 +27,10 @@ public class ConversationController {
     }
 
     @GetMapping("/{id}")
-    public ConversationStore.Detail detail(@AuthenticationPrincipal UserAccount user, @PathVariable String id) {
-        return store.detail(user.getId(), id);
+    public ConversationStore.Detail detail(@AuthenticationPrincipal UserAccount user, @PathVariable String id,
+                                           @RequestParam(required = false) Long beforeTurnId,
+                                           @RequestParam(defaultValue = "50") int size) {
+        return store.detail(user.getId(), id, beforeTurnId, size);
     }
 
     @DeleteMapping("/{id}")

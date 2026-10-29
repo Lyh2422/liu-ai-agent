@@ -10,6 +10,11 @@
     </header>
     <main class="messages" ref="listRef">
       <div class="container list">
+        <div v-if="hasMoreHistory" class="older-history">
+          <button type="button" class="btn" :disabled="loading || loadingHistory" @click="onLoadOlder?.()">
+            {{ loadingHistory ? '正在读取…' : '查看更早的记录' }}
+          </button>
+        </div>
         <section v-if="messages.length === 0" class="empty-state">
           <div class="empty-card">
             <div class="empty-kicker">不用组织好语言</div>
@@ -20,7 +25,7 @@
             </div>
           </div>
         </section>
-        <div v-for="(m, i) in messages" :key="i" class="row" :class="[m.role, { streaming: loading && i === messages.length - 1 && m.role === 'assistant' }]">
+        <div v-for="(m, i) in messages" :key="m.id || i" :data-message-id="m.id" class="row" :class="[m.role, { streaming: loading && i === messages.length - 1 && m.role === 'assistant' }]">
           <img class="avatar" :src="m.role === 'assistant' ? assistantAvatar : userAvatar" alt="" />
           <div class="bubble">
             <span class="speaker">{{ m.role === 'assistant' ? (mode === 'LOVE' ? '留心' : '校园助手') : '我' }}</span>
@@ -62,6 +67,7 @@ import { avatarSrc } from '../utils/avatar'
 import defaultAvatar from '../assets/avatar-default.svg'
 
 export interface ChatMessage {
+  id?: string
   role: 'user' | 'assistant'
   content: string
   pendingText?: string
@@ -80,6 +86,9 @@ const props = defineProps<{
   userAvatar?: string
   mode?: 'LOVE' | 'MANUS'
   renderAssistantMarkdown?: boolean
+  hasMoreHistory?: boolean
+  loadingHistory?: boolean
+  onLoadOlder?: () => void
 }>()
 
 const input = ref('')
@@ -153,10 +162,25 @@ function usePrompt(prompt: string) {
 }
 
 watch(() => props.chatId, () => { input.value = ''; scrollToBottom() })
-watch(() => props.messages.map((message) => message.content).join(''), scrollToBottom)
+watch(() => props.messages.map(message => ({ id: message.id, content: message.content })), async (current, previous) => {
+  const el = listRef.value
+  const prepended = previous.length > 0 && current.length > previous.length
+    && current[0]?.id !== previous[0]?.id
+    && current[current.length - 1]?.id === previous[previous.length - 1]?.id
+  if (prepended && el) {
+    const anchorId = previous[0]?.id
+    const anchor = () => [...el.querySelectorAll<HTMLElement>('[data-message-id]')]
+      .find(row => row.dataset.messageId === anchorId)
+    const oldTop = anchor()?.getBoundingClientRect().top
+    await nextTick()
+    const newTop = anchor()?.getBoundingClientRect().top
+    if (oldTop !== undefined && newTop !== undefined) el.scrollTop += newTop - oldTop
+  } else await scrollToBottom()
+})
 </script>
 
 <style scoped>
+.older-history { display: flex; justify-content: center; padding: 12px 0 24px; }
 .chat {
   display: grid;
   grid-template-rows: auto 1fr auto;

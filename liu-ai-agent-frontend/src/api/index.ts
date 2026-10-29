@@ -113,11 +113,14 @@ export interface HistoryMessage {
 export interface ConversationDetail {
   conversation: Conversation
   messages: HistoryMessage[]
+  nextBeforeTurnId: number | null
+  hasMore: boolean
 }
 export const conversationApi = {
   list: (appType: AppType) => api.get<Conversation[]>('/ai/conversations', { params: { appType } }),
   create: (appType: AppType) => api.post<Conversation>('/ai/conversations', { appType }),
-  detail: (id: string) => api.get<ConversationDetail>(`/ai/conversations/${encodeURIComponent(id)}`),
+  detail: (id: string, beforeTurnId?: number, size = 50) =>
+    api.get<ConversationDetail>(`/ai/conversations/${encodeURIComponent(id)}`, { params: { beforeTurnId, size } }),
   remove: (id: string) => api.delete<void>(`/ai/conversations/${encodeURIComponent(id)}`),
   stream: (appType: AppType, chatId: string, message: string, signal: AbortSignal) =>
     fetch(`${api.defaults.baseURL}/ai/${appType === 'LOVE' ? 'love_app/chat/sse' : 'manus/chat'}`, {

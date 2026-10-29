@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.io.IOException;
@@ -20,6 +21,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class AuthExceptionHandler {
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<Map<String, Object>> invalidParameterType(MethodArgumentTypeMismatchException exception) {
+        return body(HttpStatus.BAD_REQUEST, "请求参数类型不正确");
+    }
+
     @ExceptionHandler(InvalidConversationRequestException.class)
     ResponseEntity<Map<String, Object>> invalidConversation(InvalidConversationRequestException exception) {
         return body(HttpStatus.BAD_REQUEST, exception.getMessage());

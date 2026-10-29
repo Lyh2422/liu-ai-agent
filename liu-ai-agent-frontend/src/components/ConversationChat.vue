@@ -23,6 +23,7 @@
       <div v-if="error" class="error-banner" role="alert">{{ error }}<button @click="error = ''" aria-label="关闭提示">×</button></div>
       <ChatWindow :chat-id="chatId" :messages="messages" :loading="busy || remoteGenerating"
         :on-submit="send" :assistant-avatar="assistantAvatar"
+        :has-more-history="hasMoreHistory" :loading-history="loadingHistory" :on-load-older="loadOlder"
         :mode="appType"
         :render-assistant-markdown="true"
         :subtitle="appType === 'MANUS' ? '作业思路、社团方案、资料整理，都可以从这里开始' : undefined"
@@ -40,18 +41,22 @@ import { useRoute, useRouter } from 'vue-router'
 import ChatWindow, { type ChatMessage } from './ChatWindow.vue'
 import { conversationApi, type AppType, type Conversation } from '../api'
 import { streamGetEvents } from '../utils/stream'
+import { mergeHistory } from '../utils/history'
 
 const props = defineProps<{ appType: AppType; title: string; assistantAvatar: string }>()
 const route = useRoute()
 const router = useRouter()
 const conversations = ref<Conversation[]>([])
 const messages = ref<ChatMessage[]>([])
+const nextBeforeTurnId = ref<number | null>(null)
+const hasMoreHistory = ref(false)
+const loadingHistory = ref(false)
 const chatId = ref('')
 const initializing = ref(true)
 const loading = ref(false)
 const navigating = ref(false)
 const error = ref('')
-const busy = computed(() => initializing.value || loading.value || navigating.value)
+const busy = computed(() => initializing.value || loading.value || navigating.value || loadingHistory.value)
 const remoteGenerating = computed(() => messages.value.some(message => message.status === 'STREAMING'))
 let controller: AbortController | null = null
 let alive = true
@@ -70,14 +75,28 @@ async function refreshList() {
 async function loadDetail(id: string) {
   const { data } = await conversationApi.detail(id)
   if (!alive || (chatId.value && chatId.value !== id)) return
-  messages.value = data.messages
+  messages.value = mergeHistory(messages.value, data.messages)
+  // 同步最新页时保留用户已经展开的旧页及其游标。
   clearTimeout(poll)
   if (remoteGenerating.value && !loading.value) {
     poll = setTimeout(() => { if (alive && chatId.value === id) loadDetail(id).catch(cause => { error.value = errorMessage(cause) }) }, 1500)
   }
 }
+async function loadOlder() {
+  if (busy.value || remoteGenerating.value || !chatId.value || !nextBeforeTurnId.value) return
+  const id = chatId.value
+  loadingHistory.value = true
+  try {
+    const { data } = await conversationApi.detail(id, nextBeforeTurnId.value)
+    if (!alive || chatId.value !== id) return
+    messages.value = mergeHistory(messages.value, data.messages)
+    nextBeforeTurnId.value = data.nextBeforeTurnId
+    hasMoreHistory.value = data.hasMore
+  } catch (cause) { error.value = '更早记录加载失败：' + errorMessage(cause) }
+  finally { loadingHistory.value = false }
+}
 async function selectConversation(id: string) {
-  if (loading.value || navigating.value) return
+  if (loading.value || navigating.value || loadingHistory.value) return
   navigating.value = true
   error.value = ''
   clearTimeout(poll)
@@ -86,6 +105,8 @@ async function selectConversation(id: string) {
     if (!alive) return
     chatId.value = id
     messages.value = data.messages
+    nextBeforeTurnId.value = data.nextBeforeTurnId
+    hasMoreHistory.value = data.hasMore
     await router.replace({ query: { ...route.query, chat: id } })
     if (remoteGenerating.value) poll = setTimeout(() => loadDetail(id).catch(cause => { error.value = errorMessage(cause) }), 1500)
   } catch (cause) { error.value = errorMessage(cause) }
@@ -114,6 +135,8 @@ async function createConversation() {
     conversations.value.unshift(data)
     chatId.value = data.id
     messages.value = []
+    nextBeforeTurnId.value = null
+    hasMoreHistory.value = false
     await router.replace({ query: { ...route.query, chat: data.id } })
   } catch (cause) { error.value = '新建失败：' + errorMessage(cause) }
   finally { navigating.value = false }
@@ -132,6 +155,8 @@ async function deleteCurrentConversation() {
     conversations.value = conversations.value.filter(item => item.id !== id)
     chatId.value = ''
     messages.value = []
+    nextBeforeTurnId.value = null
+    hasMoreHistory.value = false
     const query = { ...route.query }
     delete query.chat
     await router.replace({ query })

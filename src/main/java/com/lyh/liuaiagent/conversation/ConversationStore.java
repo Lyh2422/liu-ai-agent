@@ -43,17 +43,31 @@ public class ConversationStore {
     }
 
     public record HistoryMessage(String id, String role, String content, String status, Instant createdAt) {}
-    public record Detail(Conversation conversation, List<HistoryMessage> messages) {}
+    public record Detail(Conversation conversation, List<HistoryMessage> messages,
+                         Long nextBeforeTurnId, boolean hasMore) {}
 
     @Transactional(readOnly = true)
     public Detail detail(Long userId, String id) {
+        return detail(userId, id, null, 50);
+    }
+
+    @Transactional(readOnly = true)
+    public Detail detail(Long userId, String id, Long beforeTurnId, int size) {
         Conversation conversation = owned(userId, id);
+        if (size < 1 || size > 100 || (beforeTurnId != null && beforeTurnId < 1)) {
+            throw new InvalidConversationRequestException("历史页大小须为 1～100，游标须为正数");
+        }
+        List<ChatTurn> page = turns.findHistoryPage(id, beforeTurnId, PageRequest.of(0, size + 1));
+        boolean hasMore = page.size() > size;
+        List<ChatTurn> selected = new ArrayList<>(page.subList(0, Math.min(size, page.size())));
+        Collections.reverse(selected);
         List<HistoryMessage> messages = new ArrayList<>();
-        for (ChatTurn turn : turns.findByConversationIdOrderByIdAsc(id)) {
+        for (ChatTurn turn : selected) {
             messages.add(new HistoryMessage(turn.getId() + "-user", "user", turn.getUserContent(), "COMPLETED", turn.getCreatedAt()));
             messages.add(new HistoryMessage(turn.getId() + "-assistant", "assistant", turn.getAssistantContent(), turn.getStatus().name(), turn.getCreatedAt()));
         }
-        return new Detail(conversation, messages);
+        Long cursor = hasMore ? selected.getFirst().getId() : null;
+        return new Detail(conversation, messages, cursor, hasMore);
     }
 
     public void delete(Long userId, String id) {

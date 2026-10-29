@@ -52,7 +52,7 @@ class ConversationControllerTest {
     }
 
     @Test void historyAndAllLegacyRoutesEnforceOwnership() throws Exception {
-        when(store.detail(17L, "foreign")).thenThrow(new NotFoundException("会话不存在"));
+        when(store.detail(17L, "foreign", null, 50)).thenThrow(new NotFoundException("会话不存在"));
         when(chat.stream(eq(17L), eq("foreign"), any(), anyString())).thenThrow(new NotFoundException("会话不存在"));
         mvc.perform(get("/ai/conversations/foreign")).andExpect(status().isNotFound());
         for (String path : List.of("/ai/love_app/chat/sse", "/ai/love_app/chat/server_sent_event", "/ai/love_app/chat/sse_emitter", "/ai/love_app/chat/sync", "/ai/manus/chat")) {
@@ -70,6 +70,23 @@ class ConversationControllerTest {
 
         doThrow(new NotFoundException("会话不存在")).when(store).delete(17L, "foreign");
         mvc.perform(delete("/ai/conversations/foreign")).andExpect(status().isNotFound());
+    }
+
+    @Test void historyPassesCursorAndPageSizeAndReportsInvalidInput() throws Exception {
+        var conversation = new Conversation();
+        when(store.detail(17L, "mine", 200L, 20)).thenReturn(
+                new ConversationStore.Detail(conversation, List.of(), 100L, true));
+        mvc.perform(get("/ai/conversations/mine").param("beforeTurnId", "200").param("size", "20"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.hasMore").value(true))
+                .andExpect(jsonPath("$.nextBeforeTurnId").value(100));
+        when(store.detail(17L, "mine", null, 101)).thenThrow(new InvalidConversationRequestException("页大小不合法"));
+        mvc.perform(get("/ai/conversations/mine").param("size", "101")).andExpect(status().isBadRequest());
+        mvc.perform(get("/ai/conversations/mine").param("beforeTurnId", "abc")).andExpect(status().isBadRequest());
+        when(chat.stream(eq(17L), eq("mine"), any(), anyString()))
+                .thenThrow(new InvalidConversationRequestException("这条消息过长，请拆成几段发送"));
+        mvc.perform(post("/ai/love_app/chat/sse").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"chatId\":\"mine\",\"message\":\"长消息\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("这条消息过长，请拆成几段发送"));
     }
 
     @Test void memoryFactsAreScopedToAuthenticatedOwner() throws Exception {

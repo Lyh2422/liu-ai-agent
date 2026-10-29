@@ -227,6 +227,34 @@ class ConversationPersistenceTest {
         }
     }
 
+    @Test void historyCursorReturnsCompleteTurnsAndStaysStableWhenNewRepliesArrive() {
+        try (var context = open()) {
+            var store = context.getBean(ConversationStore.class);
+            String id = store.create(1L, Conversation.AppType.LOVE).getId();
+            for (int i = 0; i < 7; i++) {
+                var turn = store.begin(1L, id, Conversation.AppType.LOVE, "问题" + i);
+                store.append(turn.id(), "回答" + i);
+                store.finish(turn.id(), ChatTurn.Status.COMPLETED);
+            }
+            var latest = store.detail(1L, id, null, 3);
+            assertTrue(latest.hasMore());
+            assertEquals(6, latest.messages().size());
+            assertEquals("问题4", latest.messages().getFirst().content());
+            var newTurn = store.begin(1L, id, Conversation.AppType.LOVE, "新来的问题");
+            var older = store.detail(1L, id, latest.nextBeforeTurnId(), 3);
+            assertEquals("问题1", older.messages().getFirst().content());
+            assertEquals("回答3", older.messages().getLast().content());
+            var first = store.detail(1L, id, older.nextBeforeTurnId(), 3);
+            assertEquals(2, first.messages().size());
+            assertFalse(first.hasMore());
+            assertNull(first.nextBeforeTurnId());
+            assertThrows(NotFoundException.class, () -> store.detail(2L, id, null, 3));
+            assertThrows(InvalidConversationRequestException.class, () -> store.detail(1L, id, null, 101));
+            assertThrows(InvalidConversationRequestException.class, () -> store.detail(1L, id, 0L, 3));
+            store.finish(newTurn.id(), ChatTurn.Status.INTERRUPTED);
+        }
+    }
+
     @Test void ownerCanDeleteConversationAndRetentionSkipsRecentOrStreamingConversations() {
         try (var context = open()) {
             var store = context.getBean(ConversationStore.class);
