@@ -2,6 +2,8 @@
 
 一个面向校园场景的全栈 AI 应用：既能陪你梳理关系与情绪，也能处理校园事务，还支持同学之间的私聊与群聊。
 
+新版前端以“幸运草手帐”为视觉主题，用淡粉、嫩绿、留白和便签式卡片营造轻松、柔和的校园陪伴氛围，并针对桌面端与移动端做了响应式适配。
+
 `Vue 3` · `Spring Boot 3` · `Spring AI Alibaba` · `RAG` ·
 `ReAct Agent` · `MySQL` · `PGVector` · `Docker`
 
@@ -20,6 +22,8 @@
 > 留心提供的是辅助梳理与信息支持，不能替代心理咨询、医疗建议或现实中的紧急援助。
 
 ## 界面预览
+
+首页、账号入口与聊天空间采用统一的幸运草纹理和手帐语言；重要信息仍保留足够的文字对比度，避免装饰影响使用。
 
 | 登录与账号 | 心事小屋 |
 | --- | --- |
@@ -77,7 +81,7 @@ flowchart LR
 
 | 层级 | 技术 |
 | --- | --- |
-| 前端 | Vue 3、TypeScript、Vite、Vue Router、Axios、markdown-it |
+| 前端 | Vue 3、TypeScript、Vite、Vue Router、Axios、markdown-it、响应式手帐主题 |
 | 后端 | Java 21、Spring Boot 3.4.8、Spring Security、Spring Data JPA |
 | AI | Spring AI Alibaba、DashScope SDK、LangChain4j、ReAct、MCP |
 | 数据 | MySQL 8、Flyway、PostgreSQL / PGVector；H2 用于演示环境与测试 |
@@ -183,6 +187,8 @@ npm run dev
 - 后端健康检查：[http://localhost:8123/api/health](http://localhost:8123/api/health)
 - Swagger UI：[http://localhost:8123/api/swagger-ui.html](http://localhost:8123/api/swagger-ui.html)
 
+> 本地开发时以 `5173` 上的 Vite 页面为准，它会实时加载当前前端源码。`8080` 提供的是 Docker 构建版本；前端源码更新后，需要重新执行带 `--build` 的 Compose 启动命令才能同步更新。
+
 ## 环境变量
 
 | 变量 | 必填 | 说明 |
@@ -248,6 +254,7 @@ liu-ai-agent/
 # 前端生产构建
 cd liu-ai-agent-frontend
 npm ci
+npm test
 VITE_API_BASE_URL=/api npm run build
 ```
 
