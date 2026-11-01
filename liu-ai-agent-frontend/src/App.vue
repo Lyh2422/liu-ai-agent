@@ -5,7 +5,7 @@
     <template v-else>
       <header class="site-header">
         <router-link class="brand" to="/" aria-label="留心首页">
-          <span class="brand-mark">留</span>
+          <span class="brand-mark" aria-hidden="true">✤</span>
           <span class="brand-copy"><strong>留心</strong><small>校园情感陪伴</small></span>
         </router-link>
 
@@ -117,22 +117,23 @@ html, body, #app, .app { min-height: 100%; }
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 72px;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(244, 240, 231, .92);
-  backdrop-filter: blur(18px);
+  min-height: 76px;
+  padding: 0 30px;
+  border-bottom: 1px solid rgba(232, 215, 224, .82);
+  background: rgba(255, 253, 254, .76);
+  box-shadow: 0 8px 30px rgba(133, 103, 118, .06);
+  backdrop-filter: blur(22px) saturate(1.15);
 }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
-.brand-mark { display: grid; place-items: center; width: 38px; height: 38px; color: #fffdf7; border-radius: 13px 5px 13px 5px; background: var(--green); font: 700 19px "Songti SC", serif; transform: rotate(-3deg); }
+.brand-mark { display: grid; place-items: center; width: 42px; height: 42px; color: #6f9d51; border: 1px solid #c9e9a0; border-radius: 50% 45% 52% 42%; background: linear-gradient(145deg, #f4ffe6, #d8f3b5); box-shadow: 0 7px 18px rgba(154, 201, 97, .2), inset 0 0 0 4px rgba(255, 255, 255, .5); font: 700 24px Georgia, serif; transform: rotate(-7deg); }
 .brand-copy { display: grid; line-height: 1.05; }
-.brand-copy strong { font: 700 20px "Songti SC", serif; letter-spacing: .04em; }
-.brand-copy small { margin-top: 4px; color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+.brand-copy strong { font: 700 22px "Kaiti SC", "STKaiti", serif; letter-spacing: .08em; }
+.brand-copy small { margin-top: 4px; color: #a78391; font-size: 9px; letter-spacing: .14em; }
 .nav-links { display: flex; align-items: center; justify-content: center; gap: 4px; }
-.nav-links a { position: relative; display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 11px; color: var(--muted); font-size: 13px; text-decoration: none; transition: color .16s ease, background .16s ease; }
-.nav-links a:hover { color: var(--ink); background: rgba(255, 255, 255, .5); }
-.nav-links a.router-link-active { color: var(--green-dark); background: #fff; box-shadow: inset 0 0 0 1px var(--border), 0 4px 12px rgba(41, 58, 49, .05); }
-.nav-mark { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid currentColor; border-radius: 8px 3px 8px 3px; font: 700 11px "Songti SC", serif; }
+.nav-links a { position: relative; display: flex; align-items: center; gap: 7px; padding: 9px 13px; border-radius: 999px; color: var(--muted); font-size: 13px; text-decoration: none; transition: color .16s ease, background .16s ease, transform .16s ease; }
+.nav-links a:hover { color: var(--ink); background: rgba(255, 244, 248, .8); transform: translateY(-1px); }
+.nav-links a.router-link-active { color: #87546a; background: linear-gradient(135deg, #fff, #fff0f5); box-shadow: inset 0 0 0 1px #edd8e1, 0 6px 16px rgba(174, 111, 138, .1); }
+.nav-mark { display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid #d8eab9; border-radius: 50%; color: #698c53; background: #f5ffe8; font: 700 11px "Kaiti SC", "STKaiti", serif; }
 .message-nav-link { position: relative; }
 .nav-unread-badge { position: absolute; top: 3px; right: 1px; display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid var(--paper); border-radius: 99px; color: #fff; background: var(--danger); font-size: 9px; font-weight: 800; }
 .account { display: flex; align-items: center; gap: 10px; }
@@ -141,11 +142,11 @@ html, body, #app, .app { min-height: 100%; }
 .service-state.online i { background: #5c8b6d; box-shadow: 0 0 0 3px rgba(92, 139, 109, .12); }
 .service-state.offline i { background: var(--danger); }
 .account-link { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 5px; border-radius: 99px; color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 600; }
-.account-link:hover { background: rgba(255, 255, 255, .6); }
-.account-link img { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 11px; object-fit: cover; }
+.account-link:hover { background: rgba(255, 240, 246, .72); }
+.account-link img { width: 34px; height: 34px; border: 2px solid #fff; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1px var(--border), 0 4px 12px rgba(118, 83, 100, .1); }
 .admin-link, .logout { color: var(--muted); background: none; border: 0; text-decoration: none; cursor: pointer; font-size: 12px; }
 .admin-link:hover, .logout:hover { color: var(--coral-dark); }
-.page-content { min-height: calc(100vh - 72px); }
+.page-content { min-height: calc(100vh - 76px); }
 
 @media (max-width: 980px) {
   .site-header { grid-template-columns: auto 1fr; padding: 10px 18px; }

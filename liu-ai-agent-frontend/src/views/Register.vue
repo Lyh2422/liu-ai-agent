@@ -50,20 +50,20 @@ async function submit() {
 </script>
 
 <style scoped>
-.auth-page { display: grid; grid-template-columns: minmax(360px, .8fr) 1.2fr; min-height: 100vh; background: var(--surface); }
-.auth-intro { position: relative; display: flex; min-height: 100vh; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 42px 9%; color: #fffaf2; background: var(--coral-dark); }
-.auth-intro::before { content: ''; position: absolute; right: -130px; top: 23%; width: 350px; height: 350px; border: 70px solid rgba(255,255,255,.055); border-radius: 50%; }
+.auth-page { display: grid; grid-template-columns: minmax(360px, .82fr) 1.18fr; min-height: 100vh; background: rgba(255, 253, 253, .74); }
+.auth-intro { position: relative; display: flex; min-height: 100vh; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 42px 9%; color: var(--ink); background: linear-gradient(rgba(255, 239, 246, .42), rgba(246, 255, 232, .32)), url('../assets/clover-wallpaper.jpg') center top / cover; }
+.auth-intro::before { content: '☆'; position: absolute; right: 7%; top: 19%; color: rgba(198, 123, 153, .34); font: 210px Georgia, serif; transform: rotate(-9deg); }
 .auth-intro > * { position: relative; z-index: 1; }
 .auth-brand { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
-.auth-brand span { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.55); border-radius: 14px 5px; font: 700 20px "Songti SC", serif; }
+.auth-brand span { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #cbe9a5; border-radius: 50%; color: #6b9650; background: rgba(244, 255, 228, .9); box-shadow: 0 8px 20px rgba(127, 168, 80, .12); font: 700 20px "Kaiti SC", serif; }
 .auth-brand strong { font: 700 22px "Songti SC", serif; letter-spacing: .08em; }
-.auth-intro > div p { color: #f1d5cb; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+.auth-intro > div p { color: #a35f7a; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
 .auth-intro h1 { margin-top: 16px; font-size: clamp(42px, 4.5vw, 62px); line-height: 1.14; }
-.auth-intro > div span { display: block; margin-top: 24px; color: #f3ddd5; line-height: 1.7; }
-.auth-intro ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; color: #f3ddd5; font-size: 12px; }
-.auth-intro li::before { content: '✓'; margin-right: 9px; color: var(--yellow); font-weight: 800; }
-.auth-form-wrap { display: grid; place-items: center; padding: 40px; background: radial-gradient(circle at 100% 0, rgba(49,89,77,.12), transparent 30%), var(--surface); }
-.auth-card { display: grid; gap: 16px; width: min(560px, 100%); padding-block: 20px; }
+.auth-intro > div span { display: block; margin-top: 24px; color: #786d75; line-height: 1.7; }
+.auth-intro ul { display: grid; gap: 10px; margin: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, .68); border-radius: 18px; list-style: none; color: #786d75; background: rgba(255, 255, 255, .42); font-size: 12px; }
+.auth-intro li::before { content: '✤'; margin-right: 9px; color: #80a956; font-weight: 800; }
+.auth-form-wrap { display: grid; place-items: center; padding: 40px; background: radial-gradient(circle at 100% 0, rgba(198, 233, 150, .2), transparent 32%), rgba(255, 253, 253, .68); }
+.auth-card { display: grid; gap: 16px; width: min(590px, 100%); padding: 34px; border: 1px solid rgba(234, 218, 226, .9); border-radius: 34px 12px 34px 12px; background: rgba(255, 255, 255, .76); box-shadow: 0 24px 65px rgba(130, 96, 112, .12); backdrop-filter: blur(16px); }
 .auth-card header { margin-bottom: 3px; }
 .auth-card header p { color: var(--coral-dark); font-size: 12px; font-weight: 700; letter-spacing: .1em; }
 .auth-card h2 { margin-top: 7px; font-size: 35px; }
@@ -79,7 +79,8 @@ input, textarea { width: 100%; padding: 12px 13px; resize: vertical; }
   .auth-intro { min-height: 250px; padding: 28px 24px; }
   .auth-intro h1 { font-size: 37px; }
   .auth-intro > div > span, .auth-intro ul { display: none; }
-  .auth-form-wrap { padding: 34px 24px; }
+  .auth-form-wrap { padding: 28px 16px; }
+  .auth-card { padding: 28px 22px; }
 }
 @media (max-width: 520px) { .two { grid-template-columns: 1fr; } }
 </style>

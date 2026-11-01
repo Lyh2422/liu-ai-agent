@@ -216,7 +216,7 @@ async function upload(event: Event) {
 .profile-head img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); background: var(--muted-surface); }
 h1 { font-size: 32px; }
 .role { display: inline-block; margin-top: 8px; color: var(--primary-strong); font-size: 13px; }
-.identity-card { position: relative; display: grid; gap: 6px; width: 100%; overflow: hidden; padding: 18px 20px; text-align: left; color: #fffaf5; border: 0; border-radius: 4px 20px 4px 20px; cursor: pointer; background: var(--green); box-shadow: 0 10px 28px rgba(36, 69, 60, .18); }
+.identity-card { position: relative; display: grid; gap: 6px; width: 100%; overflow: hidden; padding: 18px 20px; text-align: left; color: #fffaf5; border: 0; border-radius: 9px 24px 9px 24px; cursor: pointer; background: linear-gradient(135deg, var(--green-dark), #7fa65f); box-shadow: 0 10px 28px rgba(86, 125, 72, .2); }
 .identity-card::after { content: ''; position: absolute; right: -24px; top: -38px; width: 115px; height: 115px; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; }
 .identity-card span, .identity-card small { opacity: .8; }
 .identity-card strong { font-size: 23px; letter-spacing: .08em; }

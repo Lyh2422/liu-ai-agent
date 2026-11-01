@@ -51,20 +51,20 @@ async function submit() {
 </script>
 
 <style scoped>
-.auth-page { display: grid; grid-template-columns: minmax(390px, .9fr) 1.1fr; min-height: 100vh; background: var(--surface); }
-.auth-story { position: relative; display: flex; min-height: 100vh; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 42px 9%; color: #fdfaf2; background: var(--green-dark); }
-.auth-story::before { content: ''; position: absolute; inset: 0; opacity: .22; background: linear-gradient(transparent 31px, rgba(255,255,255,.16) 32px), linear-gradient(90deg, transparent 31px, rgba(255,255,255,.11) 32px); background-size: 32px 32px; }
-.auth-story::after { content: ''; position: absolute; right: -90px; bottom: 11%; width: 290px; height: 290px; border: 2px solid rgba(232,189,95,.7); border-radius: 50%; box-shadow: 0 0 0 34px rgba(232,189,95,.08), 0 0 0 78px rgba(232,189,95,.05); }
+.auth-page { display: grid; grid-template-columns: minmax(390px, .92fr) 1.08fr; min-height: 100vh; background: rgba(255, 253, 253, .74); }
+.auth-story { position: relative; display: flex; min-height: 100vh; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 42px 9%; color: var(--ink); background: linear-gradient(rgba(248, 255, 235, .3), rgba(255, 237, 245, .36)), url('../assets/clover-wallpaper.jpg') center top / cover; }
+.auth-story::before { content: '✦'; position: absolute; right: 12%; top: 10%; color: rgba(197, 118, 151, .36); font: 72px Georgia, serif; transform: rotate(12deg); }
+.auth-story::after { content: '✤'; position: absolute; right: -30px; bottom: 8%; color: rgba(148, 204, 81, .42); font: 260px Georgia, serif; transform: rotate(-9deg); }
 .auth-brand, .story-copy, .story-foot { position: relative; z-index: 1; }
 .auth-brand { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
-.auth-brand span { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.55); border-radius: 14px 5px; font: 700 20px "Songti SC", serif; }
+.auth-brand span { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #cbe9a5; border-radius: 50%; color: #6b9650; background: rgba(244, 255, 228, .9); box-shadow: 0 8px 20px rgba(127, 168, 80, .12); font: 700 20px "Kaiti SC", serif; }
 .auth-brand strong { font: 700 22px "Songti SC", serif; letter-spacing: .08em; }
-.story-copy > p { color: #d3dfd8; font-size: 13px; letter-spacing: .1em; }
+.story-copy > p { color: #7e9b62; font-size: 12px; font-weight: 800; letter-spacing: .13em; }
 .story-copy h1 { margin-top: 18px; font-size: clamp(44px, 5vw, 68px); line-height: 1.12; }
-.story-copy blockquote { max-width: 26rem; margin: 36px 0 0; padding-left: 16px; border-left: 3px solid var(--yellow); color: #dce6e0; font: 16px/1.8 "Kaiti SC", "STKaiti", serif; }
-.story-foot { color: #b9c9c1; font-size: 11px; letter-spacing: .09em; }
-.auth-form-wrap { display: grid; place-items: center; padding: 42px; background: radial-gradient(circle at 90% 10%, rgba(232,189,95,.16), transparent 30%), var(--surface); }
-.auth-card { display: grid; gap: 20px; width: min(420px, 100%); }
+.story-copy blockquote { max-width: 26rem; margin: 36px 0 0; padding: 15px 18px; border-left: 3px solid #a9d76c; color: #786d75; background: rgba(255, 255, 255, .48); font: 16px/1.8 "Kaiti SC", "STKaiti", serif; }
+.story-foot { color: #9a7d89; font-size: 11px; letter-spacing: .09em; }
+.auth-form-wrap { display: grid; place-items: center; padding: 42px; background: radial-gradient(circle at 90% 10%, rgba(248, 202, 219, .22), transparent 34%), rgba(255, 253, 253, .68); }
+.auth-card { display: grid; gap: 20px; width: min(450px, 100%); padding: 42px; border: 1px solid rgba(234, 218, 226, .9); border-radius: 36px 14px 36px 14px; background: rgba(255, 255, 255, .76); box-shadow: 0 24px 65px rgba(130, 96, 112, .12); backdrop-filter: blur(16px); }
 .auth-card header { margin-bottom: 8px; }
 .auth-card header p { color: var(--coral-dark); font-size: 12px; font-weight: 700; letter-spacing: .1em; }
 .auth-card h2 { margin-top: 8px; font-size: 36px; }
@@ -81,6 +81,7 @@ input { width: 100%; padding: 13px 14px; }
   .auth-story { min-height: 270px; padding: 28px 24px; }
   .story-copy h1 { font-size: 39px; }
   .story-copy > p, .story-copy blockquote, .story-foot { display: none; }
-  .auth-form-wrap { padding: 44px 24px; }
+  .auth-form-wrap { padding: 34px 18px; }
+  .auth-card { padding: 30px 24px; border-radius: 28px 10px 28px 10px; }
 }
 </style>

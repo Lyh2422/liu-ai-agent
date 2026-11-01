@@ -449,12 +449,12 @@ button {
 .empty-pills button:hover { border-color: var(--green); background: var(--green-pale); }
 .avatar { border-radius: 14px 5px 14px 5px; }
 .bubble { max-width: min(82%, 760px); border-color: var(--border); border-radius: 4px 18px 18px 18px; background: var(--surface); }
-.row.user .bubble { border-color: var(--green-dark); border-radius: 18px 4px 18px 18px; color: #fffdf7; background: var(--green); }
+.row.user .bubble { border-color: var(--green-dark); border-radius: 18px 4px 18px 18px; color: #fffdf7; background: var(--green-dark); }
 .speaker { display: block; margin-bottom: 6px; color: var(--coral-dark); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .row.user .speaker { color: #cfe0d8; text-align: right; }
 .chat-id { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 .chat-id span { width: 7px; height: 7px; border-radius: 50%; background: #6a9578; box-shadow: 0 0 0 3px rgba(106,149,120,.12); }
-.bottom { padding: 14px 0 12px; border-top-color: var(--border); background: rgba(244, 240, 231, .9); }
+.bottom { padding: 14px 0 12px; border-top-color: var(--border); background: rgba(255, 247, 250, .88); }
 .input { display: grid; grid-template-columns: 1fr auto; }
 .input textarea { width: 100%; min-height: 48px; max-height: 140px; padding: 13px 15px; border-radius: 14px; resize: vertical; line-height: 1.5; }
 .input-hint { margin-top: 7px; color: var(--muted); font-size: 10px; text-align: right; }

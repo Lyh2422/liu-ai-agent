@@ -315,8 +315,8 @@ function notifyUnreadChanged() {
 
 <style scoped>
 .message-page { height: calc(100vh - 72px); padding-top: 24px; padding-bottom: 24px; }
-.messenger-shell { display: grid; grid-template-columns: 330px minmax(0, 1fr); height: 100%; min-height: 590px; overflow: hidden; border: 1px solid var(--border); border-radius: 5px 24px 5px 24px; background: rgba(255, 253, 249, .94); box-shadow: var(--shadow); }
-.room-rail { display: flex; min-width: 0; flex-direction: column; border-right: 1px solid var(--border); background: rgba(238, 232, 220, .78); }
+.messenger-shell { display: grid; grid-template-columns: 330px minmax(0, 1fr); height: 100%; min-height: 590px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px 30px 12px 30px; background: rgba(255, 255, 255, .86); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
+.room-rail { display: flex; min-width: 0; flex-direction: column; border-right: 1px solid var(--border); background: linear-gradient(180deg, rgba(255, 239, 246, .72), rgba(245, 253, 232, .66)); }
 .rail-head { display: flex; align-items: flex-end; justify-content: space-between; padding: 24px 20px 16px; }
 .rail-head p { color: var(--muted); font-size: 11px; letter-spacing: .14em; }
 .rail-head h1 { margin-top: 3px; font-size: 34px; }
@@ -336,7 +336,7 @@ function notifyUnreadChanged() {
 .room-item.active { background: #fffdf9; box-shadow: 0 8px 22px rgba(119, 78, 45, .1); }
 .room-avatar-wrap { position: relative; width: 46px; height: 46px; }
 .room-mark { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 16px 5px 16px 5px; color: #fff; font: 700 18px ui-serif, serif; background: var(--coral-dark); }
-.room-mark.group { background: var(--green); }
+.room-mark.group { background: var(--green-dark); }
 .room-unread-badge {
   position: absolute;
   top: -5px;
@@ -385,12 +385,12 @@ function notifyUnreadChanged() {
 .message-content > p { padding: 11px 14px; border: 1px solid var(--border); border-radius: 5px 16px 16px 16px; background: #fffdf9; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-row.mine { flex-direction: row-reverse; }
 .message-row.mine .message-meta { justify-content: flex-end; }
-.message-row.mine .message-content > p { color: #fffaf5; border-color: transparent; border-radius: 16px 5px 16px 16px; background: var(--green); }
+.message-row.mine .message-content > p { color: #fffaf5; border-color: transparent; border-radius: 16px 5px 16px 16px; background: var(--green-dark); }
 .empty-chat { display: grid; place-items: center; height: 70%; color: var(--muted); font-family: ui-serif, Georgia, serif; }
 .message-composer { display: grid; gap: 8px; padding: 15px 20px 17px; border-top: 1px solid var(--border); background: rgba(255, 250, 244, .86); }
 .message-composer textarea { width: 100%; min-height: 54px; padding: 12px 14px; resize: none; background: rgba(255, 253, 249, .92); }
 .message-composer > div { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 10px; }
-.send-button { padding: 9px 22px; border: 0; border-radius: 12px; color: #fff; cursor: pointer; background: var(--green); box-shadow: 0 3px 0 var(--green-dark); }
+.send-button { padding: 9px 22px; border: 0; border-radius: 999px; color: #fff; cursor: pointer; background: var(--green-dark); box-shadow: 0 3px 0 #4f7345; }
 .send-button:disabled { cursor: default; opacity: .45; }
 .blank-stage { display: grid; align-content: center; justify-items: center; gap: 12px; padding: 40px; text-align: center; color: var(--muted); background: radial-gradient(circle, rgba(240, 217, 190, .6), transparent 48%); }
 .blank-stage h2 { color: var(--text); font-size: 27px; }.blank-stage p { line-height: 1.7; }

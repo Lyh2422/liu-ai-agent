@@ -205,8 +205,8 @@ onUnmounted(() => { alive = false; controller?.abort(); clearTimeout(poll) })
 
 <style scoped>
 .conversation-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); height: calc(100dvh - 72px); overflow: hidden; }
-.history { position: relative; display: flex; flex-direction: column; gap: 18px; min-height: 0; padding: 30px 20px 20px; background: rgba(238, 232, 220, .8); border-right: 1px solid var(--border); }
-.history::before { content: ''; position: absolute; top: 0; right: 22px; width: 1px; height: 100%; background: rgba(201, 110, 85, .18); }
+.history { position: relative; display: flex; flex-direction: column; gap: 18px; min-height: 0; padding: 30px 20px 20px; background: linear-gradient(180deg, rgba(255, 241, 247, .74), rgba(245, 253, 232, .66)); border-right: 1px solid var(--border); backdrop-filter: blur(16px); }
+.history::before { content: ''; position: absolute; top: 0; right: 22px; width: 1px; height: 100%; background: rgba(221, 154, 180, .2); }
 .history > * { position: relative; }
 .history-kicker { display: block; color: var(--coral-dark); font-size: 11px; font-weight: 700; letter-spacing: .12em; margin-bottom: 8px; }
 .history-heading h2 { font-size: 26px; }
@@ -217,9 +217,9 @@ onUnmounted(() => { alive = false; controller?.abort(); clearTimeout(poll) })
 .history-label { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 8px; }
 .refresh { border: 0; background: transparent; color: var(--accent-strong); cursor: pointer; padding: 5px; }
 .history-list { overflow-y: auto; min-height: 0; flex: 1; }
-.history-item { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 14px 12px; margin-bottom: 8px; text-align: left; border: 1px solid transparent; border-radius: 4px 14px 4px 14px; color: var(--text); background: transparent; cursor: pointer; }
+.history-item { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 14px 12px; margin-bottom: 8px; text-align: left; border: 1px solid transparent; border-radius: 17px 7px 17px 7px; color: var(--text); background: transparent; cursor: pointer; }
 .history-item:hover { background: rgba(255, 255, 255, .5); }
-.history-item.active { background: var(--surface); border-color: var(--border); box-shadow: inset 3px 0 var(--coral), var(--shadow-small); }
+.history-item.active { background: rgba(255, 255, 255, .88); border-color: var(--border); box-shadow: inset 3px 0 var(--coral), var(--shadow-small); }
 .conversation-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .history-item time { font-size: 11px; color: var(--muted); }
 .history-hint, .history-footnote { color: var(--muted); font-size: 12px; line-height: 1.8; }
