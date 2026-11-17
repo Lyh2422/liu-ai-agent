@@ -1,20 +1,25 @@
 import { reactive } from 'vue'
 import { authApi, type User } from '../api'
+import {
+  clearStoredAuth,
+  readAuthToken,
+  readAuthUser,
+  writeAuth,
+  writeAuthUser
+} from '../utils/authSession'
 
-const TOKEN_KEY = 'liu_ai_token'
-const USER_KEY = 'liu_ai_user'
+const authStorage = sessionStorage
+
+// localStorage 会在同源窗口之间共享，导致一个窗口登录后覆盖另一个窗口的账号。
+// 会话改由 sessionStorage 保存：刷新仍可恢复，但每个窗口互相隔离。
+clearStoredAuth(localStorage)
 
 function readUser(): User | null {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    return raw ? JSON.parse(raw) as User : null
-  } catch {
-    return null
-  }
+  return readAuthUser<User>(authStorage)
 }
 
 export const authState = reactive({
-  token: localStorage.getItem(TOKEN_KEY) || '',
+  token: readAuthToken(authStorage),
   user: readUser() as User | null,
   loading: false
 })
@@ -22,20 +27,18 @@ export const authState = reactive({
 export function setAuth(token: string, user: User) {
   authState.token = token
   authState.user = user
-  localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
+  writeAuth(authStorage, token, user)
 }
 
 export function setUser(user: User) {
   authState.user = user
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
+  writeAuthUser(authStorage, user)
 }
 
 export function clearAuth() {
   authState.token = ''
   authState.user = null
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
+  clearStoredAuth(authStorage)
 }
 
 export async function loadCurrentUser() {

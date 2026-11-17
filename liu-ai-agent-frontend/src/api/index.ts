@@ -1,10 +1,11 @@
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
 import { authState, clearAuth } from '../stores/auth'
+import { readAuthToken } from '../utils/authSession'
 
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8123/api'
 
 export function getAuthToken() {
-  return authState.token || localStorage.getItem('liu_ai_token') || ''
+  return authState.token || readAuthToken(sessionStorage)
 }
 
 export function authHeaders(): Record<string, string> {
